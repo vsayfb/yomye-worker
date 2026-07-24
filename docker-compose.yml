@@ -1,0 +1,15 @@
+services:
+  categorization-worker:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    container_name: cat-worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+
+networks:
+  default:
+    external: true
+    name: gig-platform

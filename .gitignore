@@ -1,0 +1,85 @@
+# -----------------------------------------------------------------------------
+# Go Binaries and Tooling
+# -----------------------------------------------------------------------------
+# Compiled binaries/executables (local builds)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.prof
+
+# Common local binary naming conventions
+bin/
+dist/
+out/
+
+# Architecture specific extensions
+*.a
+
+# -----------------------------------------------------------------------------
+# Go Tooling / Dependencies
+# -----------------------------------------------------------------------------
+# If you use Go workspaces (v1.18+) for local multi-module development
+go.work
+go.work.sum
+
+# Crash dumps
+crash.dump
+
+# -----------------------------------------------------------------------------
+# Environment Variables & Secrets (CRITICAL)
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+certs/
+
+# -----------------------------------------------------------------------------
+# IDEs and Editors
+# -----------------------------------------------------------------------------
+# JetBrains (Goland, IntelliJ, etc.)
+.idea/
+*.iwb
+*.iws
+
+# Visual Studio Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+*.code-workspace
+
+# Vim / Emacs
+*~
+*.swp
+*.swo
+.project
+.classpath
+.factorypath
+
+# -----------------------------------------------------------------------------
+# Operating System Garbage
+# -----------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -----------------------------------------------------------------------------
+# Testing & Coverage
+# -----------------------------------------------------------------------------
+*.out
+*.coverprofile
+coverage/
+
+function.zip
