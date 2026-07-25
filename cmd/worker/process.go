@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/vsayfb/gig-platform-categorization-service/internal/category"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/notification"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/worker"
 )
@@ -33,10 +32,10 @@ func (a *App) Process(ctx context.Context, record worker.Message) error {
 	slog.InfoContext(ctx, "unmarshalled message", "GigCreatedMessage", msg)
 
 	// extract GigDetails text
-	cat, err := a.categoryService.ProcessGig(ctx, msg.PosterID, msg.GigID, msg.Description)
+	cat, err := a.workerService.ProcessGig(ctx, msg.PosterID, msg.GigID, msg.Description)
 
 	if err != nil {
-		if errors.Is(err, category.ErrProfessionNotDetected) {
+		if errors.Is(err, worker.ErrProfessionNotDetected) {
 			slog.InfoContext(ctx, "profession not detected", "gig_id", msg.GigID)
 			return nil
 		}

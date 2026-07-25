@@ -7,10 +7,10 @@ import (
 	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/vsayfb/gig-platform-categorization-service/internal/category"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/extractor"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/notification"
+	"github.com/vsayfb/gig-platform-categorization-service/internal/worker"
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/database"
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/embeddings"
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/metrics"
@@ -23,7 +23,7 @@ import (
 type App struct {
 	cfg *config.Config
 
-	categoryService       *category.Service
+	workerService         *worker.Service
 	notificationPublisher *notification.SQSPublisher
 
 	db *pgxpool.Pool
@@ -97,7 +97,7 @@ func getApp(ctx context.Context) (*App, error) {
 
 		app = &App{
 			cfg:                   cfg,
-			categoryService:       category.NewService(category.NewRepository(db), embeddingClient, fallback, cfg),
+			workerService:         worker.NewService(worker.NewRepository(db), embeddingClient, fallback, cfg),
 			notificationPublisher: publisher,
 			db:                    db,
 			telemetryShutdown:     shutdownTelemetry,
