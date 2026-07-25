@@ -79,10 +79,13 @@ func getApp(ctx context.Context) (*App, error) {
 
 		embeddingClient := embeddings.NewLocalClient(cfg)
 
-		groqExtractor := extractor.NewGroqExtractor(cfg)
+		geminiExtractor := extractor.NewGeminiExtractor(cfg)
+
+		groqExtractor := extractor.NewOpenAIExtractor(cfg.AI.Groq.API_KEY, cfg.AI.Groq.API_ENDPOINT, cfg.AI.Groq.Model)
 
 		fallback := extractor.NewFallbackExtractor(
 			groqExtractor,
+			geminiExtractor,
 		)
 
 		publisher, err := notification.NewNotificationPublisher(
