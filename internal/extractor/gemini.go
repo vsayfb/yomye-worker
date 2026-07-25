@@ -2,7 +2,9 @@ package extractor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/prompter"
@@ -45,17 +47,13 @@ func (g *GeminiExtractor) Extract(
 		return nil, fmt.Errorf("generate content: %w", err)
 	}
 
-	fmt.Printf("Prompt tokens: %d\n", resp.UsageMetadata.PromptTokenCount)
-	fmt.Printf("Candidates tokens: %d\n", resp.UsageMetadata.CandidatesTokenCount)
-	fmt.Printf("Total tokens: %d\n", resp.UsageMetadata.TotalTokenCount)
+	raw := strings.TrimSpace(resp.Text())
 
-	/*
-		Prompt tokens: 1248
-		Candidates tokens: 69
-		Total tokens: 1317
-	*/
+	var extracted ExtractedGigDetails
 
-	fmt.Println(resp.Text())
+	if err := json.Unmarshal([]byte(raw), &extracted); err != nil {
+		return nil, fmt.Errorf("decode Gemini response: %w", err)
+	}
 
-	return nil, nil
+	return &extracted, nil
 }
