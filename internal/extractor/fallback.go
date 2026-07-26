@@ -19,9 +19,9 @@ func NewFallbackExtractor(extractors ...Extractor) *FallbackExtractor {
 func (f *FallbackExtractor) Extract(
 	ctx context.Context,
 	description string,
-) (*ExtractedGigDetails, error) {
+) (*ExtractedListing, error) {
 
-	var lastErr error
+	var errs []error
 
 	for _, e := range f.extractors {
 		res, err := e.Extract(ctx, description)
@@ -29,20 +29,14 @@ func (f *FallbackExtractor) Extract(
 		if err == nil {
 			return res, nil
 		}
-
-		if errors.Is(err, ErrRateLimited) ||
-			errors.Is(err, ErrUnavailable) {
-
-			lastErr = err
-			continue
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
-
-		// Permanent error.
-		return nil, err
+		errs = append(errs, err)
 	}
 
-	if lastErr != nil {
-		return nil, lastErr
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("all extractors failed: %w", errors.Join(errs...))
 	}
 
 	return nil, fmt.Errorf("no extractors configured")

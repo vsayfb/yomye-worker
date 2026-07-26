@@ -1,14 +1,8 @@
-You are an AI assistant that extracts structured information from a gig posting.
+Extract structured gig details from the Turkish marketplace text.
 
-Your task is to read a Turkish gig description and return a structured JSON object.
-
-Respond with VALID JSON ONLY.
-
-Do NOT include markdown, explanations, comments, or additional text.
-
-The JSON MUST match this schema exactly:
-
+Return valid JSON only:
 {
+  "category": "",
   "title": "",
   "profession": "",
   "duration_type": "",
@@ -17,121 +11,11 @@ The JSON MUST match this schema exactly:
   "expires_at": null
 }
 
-Field descriptions
-
-title
-- Generate a short, natural, user-facing title in Turkish.
-- Maximum 80 characters.
-- Make it suitable for displaying in a marketplace feed.
-- Include the requested profession when appropriate.
-- Do not include salary, location, company names or contact information.
-
-Examples:
-"Elektrikçi Aranıyor"
-"Kombi Tamircisi Aranıyor"
-"Ev Temizliği İçin Yardımcı Aranıyor"
-"Çocuk Bakıcısı Aranıyor"
-
-profession
-- Return ONLY the primary profession in Turkish.
-- Singular form.
-- No additional words.
-- No "Aranıyor".
-- No punctuation.
-- No explanations.
-- This value will be matched against an existing profession/category database.
-
-Examples:
-"Elektrikçi"
-"Tesisatçı"
-"Boyacı"
-"Çocuk Bakıcısı"
-"Kombi Tamircisi"
-
-If the profession cannot be determined confidently, return an empty string.
-
-duration_type
-
-Return exactly one of:
-
-"ONE_TIME"
-"HOURLY"
-"DAILY"
-"WEEKLY"
-"MONTHLY"
-
-If it cannot be determined, return an empty string.
-
-pay_amount
-
-- Return only the numeric amount.
-- Do not include currency symbols.
-- Return null if the amount is missing.
-
-Examples:
-200
-1500
-75.50
-
-pay_currency
-
-Return the ISO-4217 currency code.
-
-Examples:
-TRY
-USD
-EUR
-GBP
-
-If the currency is not explicitly mentioned, return "TRY".
-
-expires_at
-
-Always return null.
-
-Do not infer or guess an expiration date.
-
-General extraction rules
-
-- The input is written by a real user and may contain spelling mistakes, slang, abbreviations or informal language.
-- Understand the user's intent rather than relying on exact wording.
-- Ignore locations.
-- Ignore district and city names.
-- Ignore phone numbers.
-- Ignore email addresses.
-- Ignore company names.
-- Ignore experience requirements.
-- Ignore benefits.
-- Ignore unnecessary descriptive text.
-- Never invent information that is not present or strongly implied.
-- If uncertain, prefer empty strings or null instead of guessing.
-
-Example 1
-
-Input:
-"Evimin elektrik tesisatını tamir edecek bir usta arıyorum. 2000 TL ödeyeceğim."
-
-Output:
-{
-  "title": "Elektrikçi Aranıyor",
-  "profession": "Elektrikçi",
-  "duration_type": "ONE_TIME",
-  "pay_amount": 2000,
-  "pay_currency": "TRY",
-  "expires_at": null
-}
-
-Example 2
-
-Input:
-"Haftada bir gün ev temizliği yapacak yardımcı arıyorum."
-
-Output:
-{
-  "title": "Ev Temizliği İçin Yardımcı Aranıyor",
-  "profession": "Temizlik Görevlisi",
-  "duration_type": "WEEKLY",
-  "pay_amount": null,
-  "pay_currency": "TRY",
-  "expires_at": null
-}
+Rules:
+- category and profession are the same primary profession in normalized, singular Turkish.
+- title is a short natural Turkish marketplace title, maximum 80 characters.
+- duration_type is ONE_TIME, HOURLY, DAILY, WEEKLY, MONTHLY, or an empty string.
+- pay_amount is numeric or null.
+- pay_currency is an ISO-4217 code; use TRY when omitted.
+- expires_at is always null.
+- Do not invent missing details.

@@ -5,8 +5,14 @@ import (
 	"os"
 )
 
+//go:embed prompts/base_category.txt
+var baseCategoryPrompt string
+
 //go:embed prompts/profession.txt
 var professionPrompt string
+
+//go:embed prompts/sale.txt
+var salePrompt string
 
 func Init(promptFile string) error {
 	if promptFile == "" {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -12,78 +13,77 @@ import (
 	"github.com/vsayfb/gig-platform-categorization-service/internal/worker"
 )
 
-type GigCreatedMessage struct {
-	GigID       uuid.UUID `json:"gig_id"`
+type ListingCreatedMessage struct {
+	ListingID   uuid.UUID `json:"listing_id"`
 	Description string    `json:"description"`
 	CityID      int16     `json:"city_id"`
-	PosterID    uuid.UUID `json:"poster_id"`
+	AuthorID    uuid.UUID `json:"author_id"`
 }
 
 func (a *App) Process(ctx context.Context, record worker.Message) error {
 
 	slog.InfoContext(ctx, "worker record", "record", record)
 
-	var msg GigCreatedMessage
+	var msg ListingCreatedMessage
 
 	if err := json.Unmarshal([]byte(record.Body), &msg); err != nil {
 		return err
 	}
+	if msg.ListingID == uuid.Nil || msg.AuthorID == uuid.Nil {
+		return errors.New("listing-created event contains an invalid listing_id or author_id")
+	}
 
-	slog.InfoContext(ctx, "unmarshalled message", "GigCreatedMessage", msg)
+	slog.InfoContext(ctx, "unmarshalled listing-created message", "listing_id", msg.ListingID)
 
-	// extract GigDetails text
-	cat, err := a.workerService.ProcessGig(ctx, msg.PosterID, msg.GigID, msg.Description)
+	result, err := a.workerService.ProcessListing(ctx, msg.ListingID, msg.Description)
 
 	if err != nil {
-		if errors.Is(err, worker.ErrProfessionNotDetected) {
-			slog.InfoContext(ctx, "profession not detected", "gig_id", msg.GigID)
+		if errors.Is(err, worker.ErrCategoryNotDetected) {
+			slog.InfoContext(ctx, "category not detected", "listing_id", msg.ListingID)
 			return nil
 		}
-
-		// err = a.notificationPublisher.PublishRejected(ctx, notification.RejectedEnvelope{
-		// 	Type: notification.EventGigRejected,
-		// 	Payload: notification.NewGigRejectedNotificationEvent{
-		// 		RecipientID: msg.PosterID.String(),
-		// 		GigID:       msg.GigID.String(),
-		// 		OccurredAt:  time.Now(),
-		// 	},
-		// })
-
-		// if err != nil {
-		// 	slog.ErrorContext(ctx, "sqs message could not sent for (gig rejected):", "error", err)
-
-		// }
 
 		return err
 	}
 
-	slog.InfoContext(ctx, "categorized text", "category", cat)
+	slog.InfoContext(ctx,
+		"listing categorized",
+		"listing_id", msg.ListingID,
+		"base_category", result.BaseCategorySlug,
+		"category", result.Category,
+		"already_open", result.AlreadyOpen,
+	)
 
-	err = a.notificationPublisher.PublishApproved(ctx, notification.ApprovedEnvelope{
-		Type: notification.EventGigApproved,
-		Payload: notification.NewGigAprrovedNotificationEvent{
-			GigTitle:    cat.Name,
-			RecipientID: msg.PosterID.String(),
-			GigID:       msg.GigID.String(),
-			OccurredAt:  time.Now(),
+	if err := a.notificationPublisher.PublishListingApproved(
+		ctx,
+		notification.ListingApprovedEnvelope{
+			Type: notification.EventListingApproved,
+			Payload: notification.ListingApprovedEvent{
+				RecipientID:      msg.AuthorID,
+				ListingID:        msg.ListingID,
+				BaseCategorySlug: result.BaseCategorySlug,
+				Title:            result.Title,
+				OccurredAt:       time.Now().UTC(),
+			},
 		},
-	})
-
-	if err != nil {
-		slog.ErrorContext(ctx, "sqs message could not sent for (gig_approved):", "error", err)
+	); err != nil {
+		return fmt.Errorf("publish listing-approved event: %w", err)
 	}
 
-	err = a.notificationPublisher.PublishGigCategoryMatched(ctx, notification.GigCategoryMatchedEventEnvelope{
+	// Profession subscription fan-out remains gig-specific.
+	if result.BaseCategorySlug != worker.BaseCategoryGig {
+		return nil
+	}
+
+	if err := a.notificationPublisher.PublishGigCategoryMatched(ctx, notification.GigCategoryMatchedEventEnvelope{
 		Type: notification.EventGigCategoryMatched,
 		Payload: notification.GigCategoryMatchedEvent{
-			GigID:      msg.GigID,
-			CategoryID: cat.ID,
+			GigID:      msg.ListingID,
+			CategoryID: result.Category.ID,
 			CityID:     msg.CityID,
 		},
-	})
-
-	if err != nil {
-		slog.ErrorContext(ctx, "sqs message could not sent for (gig_category_matched):", "error", err)
+	}); err != nil {
+		return fmt.Errorf("publish gig-category-matched event: %w", err)
 	}
 
 	return nil

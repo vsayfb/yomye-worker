@@ -42,21 +42,18 @@ type ServerConfig struct {
 	OTelCollectorAddr string
 }
 
-type GroqCfg struct {
-	Model        string
-	API_KEY      string
-	API_ENDPOINT string
-}
-
-type GeminiCfg struct {
-	Model        string
-	API_KEY      string
-	API_ENDPOINT string
+type AIConfig struct {
+	APIKey  string
+	BaseURL string
+	Model   string
 }
 
 type AI struct {
-	Groq                GroqCfg
-	Gemini              GeminiCfg
+	Groq   AIConfig
+	Qwen   AIConfig
+	Gemini AIConfig
+	Nvidia AIConfig
+
 	HuggingFaceAIModel  string
 	PromptFile          string
 	LocalOllamaEndpoint string

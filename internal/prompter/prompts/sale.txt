@@ -1,0 +1,25 @@
+Extract structured sale details from the Turkish marketplace text.
+
+Return valid JSON only:
+{
+  "category": "",
+  "title": "",
+  "price_amount": null,
+  "price_currency": null,
+  "pricing_type": "contact",
+  "condition": null,
+  "brand": null,
+  "model": null,
+  "expires_at": null
+}
+
+Rules:
+- category is the primary item type in normalized, singular Turkish.
+- title is a short natural Turkish marketplace title, maximum 80 characters.
+- pricing_type is fixed, negotiable, free, or contact.
+- fixed and negotiable require a positive price and ISO-4217 currency.
+- use TRY for an amount expressed as TL.
+- free and contact require null price_amount and price_currency.
+- condition is null, new, like_new, good, fair, or poor.
+- expires_at is always null.
+- Do not invent missing details.

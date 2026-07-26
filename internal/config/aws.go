@@ -26,6 +26,17 @@ const (
 	ParameterGroqAPIKey   = "groq-api-key"
 	ParameterGroqEndpoint = "groq-ai-endpoint"
 	ParameterGroqModel    = "groq-ai-model"
+
+	ParameterQwenAPIKey   = "qwen-api-key"
+	ParameterQwenEndpoint = "qwen-ai-endpoint"
+	ParameterQwenModel    = "qwen-ai-model"
+
+	ParameterGeminiAPIKey = "gemini-api-key"
+	ParameterGeminiModel  = "gemini-ai-model"
+
+	ParameterNvidiaAPIKey   = "nvidia-api-key"
+	ParameterNvidiaEndpoint = "nivia-ai-endpoint"
+	ParameterNvidiaModel    = "nvidia-ai-model"
 )
 
 type rdsSecret struct {
@@ -91,9 +102,27 @@ func loadAWS(ctx context.Context) (*Config, error) {
 		},
 
 		AI: AI{
-			API_KEY:             params[ParameterGroqAPIKey],
-			API_ENDPOINT:        params[ParameterGroqEndpoint],
-			Model:               params[ParameterGroqModel],
+
+			Groq: AIConfig{
+				APIKey:  params[ParameterGroqAPIKey],
+				BaseURL: params[ParameterGroqEndpoint],
+				Model:   params[ParameterGroqModel],
+			},
+			Qwen: AIConfig{
+				APIKey:  params[ParameterQwenAPIKey],
+				BaseURL: params[ParameterQwenEndpoint],
+				Model:   params[ParameterQwenModel],
+			},
+			Gemini: AIConfig{
+				APIKey: params[ParameterGeminiAPIKey],
+				Model:  params[ParameterGeminiModel],
+			},
+			Nvidia: AIConfig{
+				APIKey:  params[ParameterNvidiaAPIKey],
+				BaseURL: params[ParameterNvidiaEndpoint],
+				Model:   params[ParameterNvidiaModel],
+			},
+
 			HuggingFaceAIModel:  getEnv(EnvHuggingFaceAIModel, DefaultHuggingFaceAIModel),
 			LocalOllamaEndpoint: getEnv(EnvLocalOllamaEndpoint, DefaultLocalOllamaEndpoint),
 			PromptFile:          getEnv(EnvPromptFilePath, DefaultPromptFilePath),
@@ -112,6 +141,14 @@ func loadParameters(ctx context.Context, client *ssm.Client) (map[string]string,
 		ssmParameter(ParameterGroqAPIKey),
 		ssmParameter(ParameterGroqEndpoint),
 		ssmParameter(ParameterGroqModel),
+		ssmParameter(ParameterQwenAPIKey),
+		ssmParameter(ParameterQwenEndpoint),
+		ssmParameter(ParameterQwenModel),
+		ssmParameter(ParameterGeminiAPIKey),
+		ssmParameter(ParameterGeminiModel),
+		ssmParameter(ParameterNvidiaAPIKey),
+		ssmParameter(ParameterNvidiaEndpoint),
+		ssmParameter(ParameterNvidiaModel),
 	}
 
 	out, err := client.GetParameters(ctx, &ssm.GetParametersInput{

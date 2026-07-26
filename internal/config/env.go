@@ -31,9 +31,27 @@ func loadEnv() (*Config, error) {
 		},
 
 		AI: AI{
-			API_KEY:             required(EnvAIKey),
-			API_ENDPOINT:        required(EnvAIEndpoint),
-			Model:               required(EnvAIModel),
+
+			Groq: AIConfig{
+				APIKey:  required(EnvGroqAPIKey),
+				BaseURL: required(EnvGroqBaseURL),
+				Model:   required(EnvGroqModel),
+			},
+			Qwen: AIConfig{
+				APIKey:  required(EnvQwenAPIKey),
+				BaseURL: required(EnvQwenBaseURL),
+				Model:   required(EnvQwenModel),
+			},
+			Gemini: AIConfig{
+				APIKey: required(EnvGeminiAPIKey),
+				Model:  required(EnvGeminiModel),
+			},
+			Nvidia: AIConfig{
+				APIKey:  required(EnvNvidiaAPIKey),
+				BaseURL: required(EnvNvidiaBaseURL),
+				Model:   required(EnvNvidiaModel),
+			},
+
 			HuggingFaceAIModel:  getEnv(EnvHuggingFaceAIModel, DefaultHuggingFaceAIModel),
 			LocalOllamaEndpoint: getEnv(EnvLocalOllamaEndpoint, DefaultLocalOllamaEndpoint),
 			PromptFile:          getEnv(EnvPromptFilePath, DefaultPromptFilePath),

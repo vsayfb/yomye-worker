@@ -9,21 +9,22 @@ import (
 type NotificationEventType string
 
 const (
-	EventGigApproved        NotificationEventType = "gig_approved"
+	EventListingApproved    NotificationEventType = "listing_approved"
 	EventGigRejected        NotificationEventType = "gig_rejected"
 	EventGigCategoryMatched NotificationEventType = "gig_category_matched"
 )
 
-type ApprovedEnvelope struct {
-	Type    NotificationEventType           `json:"type"`
-	Payload NewGigAprrovedNotificationEvent `json:"payload"`
+type ListingApprovedEnvelope struct {
+	Type    NotificationEventType `json:"type"`
+	Payload ListingApprovedEvent  `json:"payload"`
 }
 
-type NewGigAprrovedNotificationEvent struct {
-	RecipientID string    `json:"recipient_id"`
-	GigID       string    `json:"gig_id"`
-	GigTitle    string    `json:"gig_title"`
-	OccurredAt  time.Time `json:"occurred_at"`
+type ListingApprovedEvent struct {
+	RecipientID      uuid.UUID `json:"recipient_id"`
+	ListingID        uuid.UUID `json:"listing_id"`
+	BaseCategorySlug string    `json:"base_category_slug"`
+	Title            string    `json:"title"`
+	OccurredAt       time.Time `json:"occurred_at"`
 }
 
 type RejectedEnvelope struct {

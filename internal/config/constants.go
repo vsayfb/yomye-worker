@@ -19,9 +19,21 @@ const (
 	EnvOtelCollectorAddr = "OTEL_COLLECTOR_ADDR"
 	EnvMetricsServerPort = "METRICS_SERVER_PORT"
 
-	EnvAIKey               = "AI_API_KEY"
-	EnvAIEndpoint          = "AI_API_ENDPOINT"
-	EnvAIModel             = "AI_MODEL"
+	EnvGroqAPIKey  = "GROQ_API_KEY"
+	EnvGroqModel   = "GROQ_MODEL"
+	EnvGroqBaseURL = "GROQ_BASE_URL"
+
+	EnvGeminiAPIKey = "GEMINI_API_KEY"
+	EnvGeminiModel  = "GEMINI_MODEL"
+
+	EnvQwenAPIKey  = "QWEN_API_KEY"
+	EnvQwenModel   = "QWEN_MODEL"
+	EnvQwenBaseURL = "QWEN_BASE_URL"
+
+	EnvNvidiaAPIKey  = "NVIDIA_API_KEY"
+	EnvNvidiaModel   = "NVIDIA_MODEL"
+	EnvNvidiaBaseURL = "NVIDIA_BASE_URL"
+
 	EnvHuggingFaceAIModel  = "HUGGINGFACE_AI_MODEL"
 	EnvLocalOllamaEndpoint = "LOCAL_OLLAMA_ENDPOINT"
 	EnvPromptFilePath      = "PROMPT_FILE"

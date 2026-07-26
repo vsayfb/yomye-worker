@@ -33,7 +33,10 @@ func NewNotificationPublisher(ctx context.Context, cfg *config.Config) (*SQSPubl
 	}, nil
 }
 
-func (p *SQSPublisher) PublishApproved(ctx context.Context, event ApprovedEnvelope) error {
+func (p *SQSPublisher) PublishListingApproved(
+	ctx context.Context,
+	event ListingApprovedEnvelope,
+) error {
 
 	body, err := json.Marshal(event)
 
@@ -50,7 +53,11 @@ func (p *SQSPublisher) PublishApproved(ctx context.Context, event ApprovedEnvelo
 		return fmt.Errorf("sqs: send message: %w", err)
 	}
 
-	slog.InfoContext(ctx, "sqs message sent for (gig):", "message", aws.ToString(inf.MessageId))
+	slog.InfoContext(ctx,
+		"listing-approved event published",
+		"message_id", aws.ToString(inf.MessageId),
+		"listing_id", event.Payload.ListingID,
+	)
 
 	return nil
 }

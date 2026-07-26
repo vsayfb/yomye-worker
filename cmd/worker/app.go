@@ -79,14 +79,21 @@ func getApp(ctx context.Context) (*App, error) {
 
 		embeddingClient := embeddings.NewLocalClient(cfg)
 
-		geminiExtractor := extractor.NewGeminiExtractor(cfg)
+		var extractors []extractor.Extractor
+		for _, provider := range []*config.AIConfig{
+			&cfg.AI.Nvidia,
+			&cfg.AI.Qwen,
+			&cfg.AI.Groq,
+		} {
+			if provider.APIKey != "" && provider.BaseURL != "" && provider.Model != "" {
+				extractors = append(extractors, extractor.NewOpenAIExtractor(provider))
+			}
+		}
+		if cfg.AI.Gemini.APIKey != "" && cfg.AI.Gemini.Model != "" {
+			extractors = append(extractors, extractor.NewGeminiExtractor(&cfg.AI.Gemini))
+		}
 
-		groqExtractor := extractor.NewOpenAIExtractor(cfg.AI.Groq.API_KEY, cfg.AI.Groq.API_ENDPOINT, cfg.AI.Groq.Model)
-
-		fallback := extractor.NewFallbackExtractor(
-			groqExtractor,
-			geminiExtractor,
-		)
+		fallback := extractor.NewFallbackExtractor(extractors...)
 
 		publisher, err := notification.NewNotificationPublisher(
 			ctx,
