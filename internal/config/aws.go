@@ -36,7 +36,7 @@ const (
 	ParameterGeminiModel  = "gemini-ai-model"
 
 	ParameterNvidiaAPIKey   = "nvidia-api-key"
-	ParameterNvidiaEndpoint = "nivida-ai-endpoint"
+	ParameterNvidiaEndpoint = "nvidia-ai-endpoint"
 	ParameterNvidiaModel    = "nvidia-ai-model"
 )
 
@@ -156,37 +156,41 @@ func loadParameters(ctx context.Context, client *ssm.Client) (map[string]string,
 		ssmParameter(ParameterNvidiaModel),
 	}
 
-	out, err := client.GetParameters(ctx, &ssm.GetParametersInput{
-		Names:          names,
-		WithDecryption: aws.Bool(true),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("read parameter store: %w", err)
-	}
+	params := make(map[string]string, len(names))
 
-	if len(out.InvalidParameters) > 0 {
-		return nil, fmt.Errorf(
-			"missing or invalid SSM parameters: %v",
-			out.InvalidParameters,
-		)
-	}
+	const batchSize = 10
 
-	params := make(map[string]string, len(out.Parameters))
+	for start := 0; start < len(names); start += batchSize {
+		end := min(start+batchSize, len(names))
 
-	for _, p := range out.Parameters {
-		name := aws.ToString(p.Name)
-		value := aws.ToString(p.Value)
+		out, err := client.GetParameters(ctx, &ssm.GetParametersInput{
+			Names:          names[start:end],
+			WithDecryption: aws.Bool(true),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("read parameter batch: %w", err)
+		}
 
-		key, found := strings.CutPrefix(name, SSMParameterPath)
-		if !found {
+		if len(out.InvalidParameters) > 0 {
 			return nil, fmt.Errorf(
-				"unexpected SSM parameter name %q; expected prefix %q",
-				name,
-				SSMParameterPath,
+				"missing or invalid parameters: %v",
+				out.InvalidParameters,
 			)
 		}
 
-		params[key] = value
+		for _, p := range out.Parameters {
+			fullName := aws.ToString(p.Name)
+
+			key, ok := strings.CutPrefix(fullName, SSMParameterPath)
+			if !ok {
+				return nil, fmt.Errorf(
+					"unexpected parameter name %q",
+					fullName,
+				)
+			}
+
+			params[key] = aws.ToString(p.Value)
+		}
 	}
 
 	return params, nil
