@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awscfg "github.com/aws/aws-sdk-go-v2/config"
@@ -155,16 +156,38 @@ func loadParameters(ctx context.Context, client *ssm.Client) (map[string]string,
 		ssmParameter(ParameterNvidiaModel),
 	}
 
-	_, err := client.GetParameters(ctx, &ssm.GetParametersInput{
+	out, err := client.GetParameters(ctx, &ssm.GetParametersInput{
 		Names:          names,
 		WithDecryption: aws.Bool(true),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("read parameter store: %w", err)
 	}
 
-	params := make(map[string]string)
+	if len(out.InvalidParameters) > 0 {
+		return nil, fmt.Errorf(
+			"missing or invalid SSM parameters: %v",
+			out.InvalidParameters,
+		)
+	}
+
+	params := make(map[string]string, len(out.Parameters))
+
+	for _, p := range out.Parameters {
+		name := aws.ToString(p.Name)
+		value := aws.ToString(p.Value)
+
+		key, found := strings.CutPrefix(name, SSMParameterPath)
+		if !found {
+			return nil, fmt.Errorf(
+				"unexpected SSM parameter name %q; expected prefix %q",
+				name,
+				SSMParameterPath,
+			)
+		}
+
+		params[key] = value
+	}
 
 	return params, nil
 }
