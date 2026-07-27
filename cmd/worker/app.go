@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
@@ -28,7 +29,9 @@ type App struct {
 
 	db *pgxpool.Pool
 
+	mu                sync.RWMutex
 	telemetryShutdown func(context.Context) error
+	cancelTelemetry   context.CancelFunc
 }
 
 var (
@@ -37,9 +40,73 @@ var (
 	initErr error
 )
 
+func initTelemetryWithRetry(
+	ctx context.Context,
+	cfg *config.Config,
+	logHandler slog.Handler,
+	app *App,
+) {
+	const (
+		retryInterval = 30 * time.Second
+		retryTimeout  = 5 * time.Minute
+	)
+
+	deadline := time.Now().Add(retryTimeout)
+
+	ticker := time.NewTicker(retryInterval)
+	defer ticker.Stop()
+
+	for {
+		shutdownTelemetry, err := telemetry.Init(
+			ctx,
+			cfg.App.ServiceName,
+			cfg.Server.OTelCollectorAddr,
+		)
+
+		if err == nil {
+			select {
+			case <-ctx.Done():
+				shutdownTelemetry(ctx)
+				return
+			default:
+			}
+
+			app.mu.Lock()
+			app.telemetryShutdown = shutdownTelemetry
+			app.mu.Unlock()
+
+			slog.SetDefault(
+				slog.New(tracing.NewOTelHandler(logHandler)),
+			)
+
+			slog.Info("telemetry initialized")
+			return
+		}
+
+		if time.Now().After(deadline) {
+			slog.Error(
+				"failed to initialize telemetry after retries",
+				"error", err,
+			)
+			return
+		}
+
+		slog.Warn(
+			"telemetry unavailable, retrying",
+			"retry_in", retryInterval,
+			"error", err,
+		)
+
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 func getApp(ctx context.Context) (*App, error) {
 	once.Do(func() {
-
 		cfg, err := config.Load(ctx)
 
 		if err != nil {
@@ -49,19 +116,10 @@ func getApp(ctx context.Context) (*App, error) {
 
 		logHandler := lg.Init(cfg.App.Env)
 
-		shutdownTelemetry, err := telemetry.Init(ctx, cfg.App.ServiceName, cfg.Server.OTelCollectorAddr)
-
-		if err != nil {
-			initErr = fmt.Errorf("initialize telemetry: %w", err)
-			return
-		}
-
 		if err := metrics.Register(); err != nil {
 			initErr = fmt.Errorf("register metrics: %w", err)
 			return
 		}
-
-		slog.SetDefault(slog.New(tracing.NewOTelHandler(logHandler)))
 
 		poolCfg, err := pgxpool.ParseConfig(cfg.DB.DSN())
 
@@ -80,17 +138,28 @@ func getApp(ctx context.Context) (*App, error) {
 		embeddingClient := embeddings.NewLocalClient(cfg)
 
 		var extractors []extractor.Extractor
+
 		for _, provider := range []*config.AIConfig{
 			&cfg.AI.Nvidia,
 			&cfg.AI.Qwen,
 			&cfg.AI.Groq,
 		} {
-			if provider.APIKey != "" && provider.BaseURL != "" && provider.Model != "" {
-				extractors = append(extractors, extractor.NewOpenAIExtractor(provider))
+			if provider.APIKey != "" &&
+				provider.BaseURL != "" &&
+				provider.Model != "" {
+				extractors = append(
+					extractors,
+					extractor.NewOpenAIExtractor(provider),
+				)
 			}
 		}
-		if cfg.AI.Gemini.APIKey != "" && cfg.AI.Gemini.Model != "" {
-			extractors = append(extractors, extractor.NewGeminiExtractor(&cfg.AI.Gemini))
+
+		if cfg.AI.Gemini.APIKey != "" &&
+			cfg.AI.Gemini.Model != "" {
+			extractors = append(
+				extractors,
+				extractor.NewGeminiExtractor(&cfg.AI.Gemini),
+			)
 		}
 
 		fallback := extractor.NewFallbackExtractor(extractors...)
@@ -105,24 +174,43 @@ func getApp(ctx context.Context) (*App, error) {
 			return
 		}
 
+		telemetryCtx, telemetryCancel := context.WithCancel(ctx)
+
 		app = &App{
 			cfg:                   cfg,
 			workerService:         worker.NewService(worker.NewRepository(db), embeddingClient, fallback, cfg),
 			notificationPublisher: publisher,
 			db:                    db,
-			telemetryShutdown:     shutdownTelemetry,
+			telemetryShutdown: func(context.Context) error {
+				return nil
+			},
+			cancelTelemetry: telemetryCancel,
 		}
+
+		go initTelemetryWithRetry(
+			telemetryCtx,
+			cfg,
+			logHandler,
+			app,
+		)
 	})
 
 	return app, initErr
 }
 
 func (a *App) Close(ctx context.Context) error {
-
 	slog.Info("closing application")
 
-	if a.telemetryShutdown != nil {
-		if err := a.telemetryShutdown(ctx); err != nil {
+	if a.cancelTelemetry != nil {
+		a.cancelTelemetry()
+	}
+
+	a.mu.RLock()
+	shutdownTelemetry := a.telemetryShutdown
+	a.mu.RUnlock()
+
+	if shutdownTelemetry != nil {
+		if err := shutdownTelemetry(ctx); err != nil {
 			slog.Error(
 				"shutdown telemetry failed",
 				"err",
