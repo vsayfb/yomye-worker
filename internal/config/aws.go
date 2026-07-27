@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
+	"log/slog"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awscfg "github.com/aws/aws-sdk-go-v2/config"
@@ -15,28 +15,28 @@ import (
 const SSMParameterPath = "/yevmiye/app/"
 
 const (
-	ParameterDBHost       = "db_host"
-	ParameterDBPort       = "db_port"
-	ParameterDBName       = "db_name"
-	ParameterRDSSecretArn = "rds_secret_arn"
+	ParameterDBHost       = "db-host"
+	ParameterDBPort       = "db-port"
+	ParameterDBName       = "db-name"
+	ParameterRDSSecretArn = "rds-secret-arn"
 
-	ParameterSQSCategoryEventsQueueURL     = "sqs_category_events_queue_url"
-	ParameterSQSNotificationEventsQueueURL = "sqs_notification_events_queue_url"
+	ParameterSQSCategoryEventsQueueURL     = "sqs-category-events-queue-url"
+	ParameterSQSNotificationEventsQueueURL = "sqs-notification-events-queue-url"
 
-	ParameterGroqAPIKey   = "groq_api_key"
-	ParameterGroqEndpoint = "groq_ai_endpoint"
-	ParameterGroqModel    = "groq_ai_model"
+	ParameterGroqAPIKey   = "groq-api-key"
+	ParameterGroqEndpoint = "groq-ai-endpoint"
+	ParameterGroqModel    = "groq-ai-model"
 
-	ParameterQwenAPIKey   = "qwen_api_key"
-	ParameterQwenEndpoint = "qwen_ai_endpoint"
-	ParameterQwenModel    = "qwen_ai_model"
+	ParameterQwenAPIKey   = "qwen-api-key"
+	ParameterQwenEndpoint = "qwen-ai-endpoint"
+	ParameterQwenModel    = "qwen-ai-model"
 
-	ParameterGeminiAPIKey = "gemini_api_key"
-	ParameterGeminiModel  = "gemini_ai_model"
+	ParameterGeminiAPIKey = "gemini-api-key"
+	ParameterGeminiModel  = "gemini-ai-model"
 
-	ParameterNvidiaAPIKey   = "nvidia_api-key"
-	ParameterNvidiaEndpoint = "nivida_ai_endpoint"
-	ParameterNvidiaModel    = "nvidia_ai_model"
+	ParameterNvidiaAPIKey   = "nvidia-api-key"
+	ParameterNvidiaEndpoint = "nivida-ai-endpoint"
+	ParameterNvidiaModel    = "nvidia-ai-model"
 )
 
 type rdsSecret struct {
@@ -62,6 +62,10 @@ func loadAWS(ctx context.Context) (*Config, error) {
 	secretsClient := secretsmanager.NewFromConfig(awsCfg)
 
 	params, err := loadParameters(ctx, ssmClient)
+
+	for k, v := range params {
+		slog.Info("parameter", "key", k, "value", v)
+	}
 
 	if err != nil {
 		return nil, err
@@ -151,7 +155,7 @@ func loadParameters(ctx context.Context, client *ssm.Client) (map[string]string,
 		ssmParameter(ParameterNvidiaModel),
 	}
 
-	out, err := client.GetParameters(ctx, &ssm.GetParametersInput{
+	_, err := client.GetParameters(ctx, &ssm.GetParametersInput{
 		Names:          names,
 		WithDecryption: aws.Bool(true),
 	})
@@ -161,11 +165,6 @@ func loadParameters(ctx context.Context, client *ssm.Client) (map[string]string,
 	}
 
 	params := make(map[string]string)
-
-	for _, p := range out.Parameters {
-		key := strings.TrimPrefix(aws.ToString(p.Name), SSMParameterPath+"/")
-		params[key] = aws.ToString(p.Value)
-	}
 
 	return params, nil
 }
