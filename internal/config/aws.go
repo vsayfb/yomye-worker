@@ -15,28 +15,28 @@ import (
 const SSMParameterPath = "/yevmiye/app/"
 
 const (
-	ParameterDBHost       = "db-host"
-	ParameterDBPort       = "db-port"
-	ParameterDBName       = "db-name"
-	ParameterRDSSecretArn = "rds-secret-arn"
+	ParameterDBHost       = "db_host"
+	ParameterDBPort       = "db_port"
+	ParameterDBName       = "db_name"
+	ParameterRDSSecretArn = "rds_secret_arn"
 
-	ParameterSQSCategoryEventsQueueURL     = "sqs-category-events-queue-url"
-	ParameterSQSNotificationEventsQueueURL = "sqs-notification-events-queue-url"
+	ParameterSQSCategoryEventsQueueURL     = "sqs_category_events_queue_url"
+	ParameterSQSNotificationEventsQueueURL = "sqs_notification_events_queue_url"
 
-	ParameterGroqAPIKey   = "groq-api-key"
-	ParameterGroqEndpoint = "groq-ai-endpoint"
-	ParameterGroqModel    = "groq-ai-model"
+	ParameterGroqAPIKey   = "groq_api_key"
+	ParameterGroqEndpoint = "groq_ai_endpoint"
+	ParameterGroqModel    = "groq_ai_model"
 
-	ParameterQwenAPIKey   = "qwen-api-key"
-	ParameterQwenEndpoint = "qwen-ai-endpoint"
-	ParameterQwenModel    = "qwen-ai-model"
+	ParameterQwenAPIKey   = "qwen_api_key"
+	ParameterQwenEndpoint = "qwen_ai_endpoint"
+	ParameterQwenModel    = "qwen_ai_model"
 
-	ParameterGeminiAPIKey = "gemini-api-key"
-	ParameterGeminiModel  = "gemini-ai-model"
+	ParameterGeminiAPIKey = "gemini_api_key"
+	ParameterGeminiModel  = "gemini_ai_model"
 
-	ParameterNvidiaAPIKey   = "nvidia-api-key"
-	ParameterNvidiaEndpoint = "nivia-ai-endpoint"
-	ParameterNvidiaModel    = "nvidia-ai-model"
+	ParameterNvidiaAPIKey   = "nvidia_api-key"
+	ParameterNvidiaEndpoint = "nivida_ai_endpoint"
+	ParameterNvidiaModel    = "nvidia_ai_model"
 )
 
 type rdsSecret struct {
