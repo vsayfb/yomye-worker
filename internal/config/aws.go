@@ -59,6 +59,11 @@ func loadAWS(ctx context.Context) (*Config, error) {
 		return nil, fmt.Errorf("load aws creds: %w", err)
 	}
 
+	var endpoint string
+	if awsCfg.BaseEndpoint != nil {
+		endpoint = *awsCfg.BaseEndpoint
+	}
+
 	ssmClient := ssm.NewFromConfig(awsCfg)
 	secretsClient := secretsmanager.NewFromConfig(awsCfg)
 
@@ -100,6 +105,7 @@ func loadAWS(ctx context.Context) (*Config, error) {
 
 		AWS: AWSConfig{
 			Region:                    awsCfg.Region,
+			SQSEndpoint:               endpoint,
 			AccessKeyID:               awsCreds.AccessKeyID,
 			SecretAccessKey:           awsCreds.SecretAccessKey,
 			CategorizationEventsQueue: params[ParameterSQSCategoryEventsQueueURL],
