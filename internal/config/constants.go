@@ -53,7 +53,7 @@ const (
 	DefaultMetricsServerPort = ":9100"
 
 	DefaultHuggingFaceAIModel  = "all-minilm:l12-v2"
-	DefaultLocalOllamaEndpoint = "localhost:11434"
+	DefaultLocalOllamaEndpoint = "http://localhost:11434"
 	DefaultPromptFilePath      = "./internal/prompter/prompts/profession.txt"
 
 	DefaultDBSSLMode = "disable"

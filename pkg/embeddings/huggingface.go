@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
@@ -44,12 +46,15 @@ func (c *LocalClient) Embed(ctx context.Context, text string) ([]float32, error)
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
 
-	url := c.cfg.AI.LocalOllamaEndpoint + "/api/embeddings"
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-
+	endpoint, err := ollamaEmbeddingsURL(c.cfg.AI.LocalOllamaEndpoint)
 	if err != nil {
 		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+
+	if err != nil {
+		return nil, fmt.Errorf("create local ollama request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -77,4 +82,28 @@ func (c *LocalClient) Embed(ctx context.Context, text string) ([]float32, error)
 	}
 
 	return result.Embedding, nil
+}
+
+func ollamaEmbeddingsURL(endpoint string) (string, error) {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return "", fmt.Errorf("local ollama endpoint is empty")
+	}
+	if !strings.Contains(endpoint, "://") {
+		endpoint = "http://" + endpoint
+	}
+
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("parse local ollama endpoint: %w", err)
+	}
+	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return "", fmt.Errorf("invalid local ollama endpoint %q", endpoint)
+	}
+
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/api/embeddings"
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+
+	return parsed.String(), nil
 }
