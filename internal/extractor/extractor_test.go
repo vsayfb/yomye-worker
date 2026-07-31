@@ -17,8 +17,11 @@ func TestDecodeBaseCategory(t *testing.T) {
 func TestDecodeGigDetailsBuildsDiscriminatedListing(t *testing.T) {
 	t.Parallel()
 
-	got, err := decodeDetails("gig", `{
-		"category": "Yazılımcı",
+	path := []ExtractedCategoryNode{
+		{Name: "Bilişim ve Teknoloji", Description: "Dijital teknoloji hizmetleri"},
+		{Name: "Yazılımcı", Description: "Yazılım geliştirme hizmetleri"},
+	}
+	got, err := decodeDetails("gig", path, `{
 		"title": "Yazılımcı Aranıyor",
 		"profession": "Yazılımcı",
 		"duration_type": "",
@@ -32,7 +35,9 @@ func TestDecodeGigDetailsBuildsDiscriminatedListing(t *testing.T) {
 	if got.Gig == nil || got.Sale != nil {
 		t.Fatalf("decodeDetails() returned invalid gig shape: %#v", got)
 	}
-	if got.Category != "Yazılımcı" || got.Gig.Profession != "Yazılımcı" {
+	if len(got.CategoryPath) != 2 ||
+		got.CategoryPath[1].Name != "Yazılımcı" ||
+		got.Gig.Profession != "Yazılımcı" {
 		t.Fatalf("decodeDetails() = %#v", got)
 	}
 }
@@ -40,8 +45,11 @@ func TestDecodeGigDetailsBuildsDiscriminatedListing(t *testing.T) {
 func TestDecodeSaleDetailsBuildsDiscriminatedListing(t *testing.T) {
 	t.Parallel()
 
-	got, err := decodeDetails("for-sale", `{
-		"category": "Bisiklet",
+	path := []ExtractedCategoryNode{
+		{Name: "Spor ve Outdoor", Description: "Spor ve açık hava ürünleri"},
+		{Name: "Bisiklet", Description: "Bisiklet ve ekipmanları"},
+	}
+	got, err := decodeDetails("for-sale", path, `{
 		"title": "Az Kullanılmış Bisiklet",
 		"price_amount": null,
 		"price_currency": null,
@@ -57,7 +65,26 @@ func TestDecodeSaleDetailsBuildsDiscriminatedListing(t *testing.T) {
 	if got.Sale == nil || got.Gig != nil {
 		t.Fatalf("decodeDetails() returned invalid sale shape: %#v", got)
 	}
-	if got.Category != "Bisiklet" || got.Sale.PricingType != "contact" {
+	if len(got.CategoryPath) != 2 ||
+		got.CategoryPath[1].Name != "Bisiklet" ||
+		got.Sale.PricingType != "contact" {
 		t.Fatalf("decodeDetails() = %#v", got)
+	}
+}
+
+func TestDecodeCategoryPath(t *testing.T) {
+	t.Parallel()
+
+	got, err := decodeCategoryPath(`{
+		"category_path": [
+			{"name":"Eğitim","description":"Eğitim hizmetleri"},
+			{"name":"Matematik Öğretmeni","description":"Matematik eğitimi"}
+		]
+	}`)
+	if err != nil {
+		t.Fatalf("decodeCategoryPath() error = %v", err)
+	}
+	if len(got) != 2 || got[1].Name != "Matematik Öğretmeni" {
+		t.Fatalf("decodeCategoryPath() = %#v", got)
 	}
 }

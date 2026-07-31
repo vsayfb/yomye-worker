@@ -27,26 +27,33 @@ type ExtractedSaleDetails struct {
 	Model         *string  `json:"model"`
 }
 
+type ExtractedCategoryNode struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
 type ExtractedListing struct {
-	BaseCategorySlug string                `json:"base_category_slug"`
-	Category         string                `json:"category"`
-	Gig              *ExtractedGigDetails  `json:"gig"`
-	Sale             *ExtractedSaleDetails `json:"sale"`
-	ExpiresAt        *time.Time            `json:"expires_at"`
+	BaseCategorySlug string                  `json:"base_category_slug"`
+	CategoryPath     []ExtractedCategoryNode `json:"category_path"`
+	Gig              *ExtractedGigDetails    `json:"gig"`
+	Sale             *ExtractedSaleDetails   `json:"sale"`
+	ExpiresAt        *time.Time              `json:"expires_at"`
 }
 
 type baseCategoryResult struct {
 	BaseCategorySlug string `json:"base_category_slug"`
 }
 
+type categoryPathResult struct {
+	CategoryPath []ExtractedCategoryNode `json:"category_path"`
+}
+
 type gigResult struct {
-	Category  string     `json:"category"`
 	ExpiresAt *time.Time `json:"expires_at"`
 	ExtractedGigDetails
 }
 
 type saleResult struct {
-	Category  string     `json:"category"`
 	ExpiresAt *time.Time `json:"expires_at"`
 	ExtractedSaleDetails
 }
@@ -64,8 +71,23 @@ func decodeBaseCategory(raw string) (string, error) {
 	}
 }
 
-func decodeDetails(baseCategorySlug, raw string) (*ExtractedListing, error) {
-	listing := &ExtractedListing{BaseCategorySlug: baseCategorySlug}
+func decodeCategoryPath(raw string) ([]ExtractedCategoryNode, error) {
+	var result categoryPathResult
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &result); err != nil {
+		return nil, fmt.Errorf("decode category path: %w", err)
+	}
+	return result.CategoryPath, nil
+}
+
+func decodeDetails(
+	baseCategorySlug string,
+	categoryPath []ExtractedCategoryNode,
+	raw string,
+) (*ExtractedListing, error) {
+	listing := &ExtractedListing{
+		BaseCategorySlug: baseCategorySlug,
+		CategoryPath:     categoryPath,
+	}
 
 	switch baseCategorySlug {
 	case "gig":
@@ -73,7 +95,6 @@ func decodeDetails(baseCategorySlug, raw string) (*ExtractedListing, error) {
 		if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &result); err != nil {
 			return nil, fmt.Errorf("decode gig details: %w", err)
 		}
-		listing.Category = result.Category
 		listing.Gig = &result.ExtractedGigDetails
 		listing.ExpiresAt = result.ExpiresAt
 	case "for-sale":
@@ -81,7 +102,6 @@ func decodeDetails(baseCategorySlug, raw string) (*ExtractedListing, error) {
 		if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &result); err != nil {
 			return nil, fmt.Errorf("decode sale details: %w", err)
 		}
-		listing.Category = result.Category
 		listing.Sale = &result.ExtractedSaleDetails
 		listing.ExpiresAt = result.ExpiresAt
 	default:
@@ -101,5 +121,6 @@ type EmbeddingClient interface {
 }
 
 type Extractor interface {
-	Extract(ctx context.Context, description string) (*ExtractedListing, error)
+	Classify(ctx context.Context, description string) (string, error)
+	Extract(ctx context.Context, description, baseCategorySlug, catalog string) (*ExtractedListing, error)
 }

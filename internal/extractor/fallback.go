@@ -18,13 +18,13 @@ func NewFallbackExtractor(extractors ...Extractor) *FallbackExtractor {
 
 func (f *FallbackExtractor) Extract(
 	ctx context.Context,
-	description string,
+	description, baseCategorySlug, catalog string,
 ) (*ExtractedListing, error) {
 
 	var errs []error
 
 	for _, e := range f.extractors {
-		res, err := e.Extract(ctx, description)
+		res, err := e.Extract(ctx, description, baseCategorySlug, catalog)
 
 		if err == nil {
 			return res, nil
@@ -40,4 +40,24 @@ func (f *FallbackExtractor) Extract(
 	}
 
 	return nil, fmt.Errorf("no extractors configured")
+}
+
+func (f *FallbackExtractor) Classify(ctx context.Context, description string) (string, error) {
+	var errs []error
+
+	for _, e := range f.extractors {
+		result, err := e.Classify(ctx, description)
+		if err == nil {
+			return result, nil
+		}
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return "", fmt.Errorf("all classifiers failed: %w", errors.Join(errs...))
+	}
+	return "", fmt.Errorf("no extractors configured")
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,10 +15,13 @@ import (
 )
 
 type Category struct {
-	ID        uuid.UUID
-	Name      string
-	Slug      string
-	CreatedAt time.Time
+	ID          uuid.UUID
+	ParentID    *uuid.UUID
+	Name        string
+	Slug        string
+	Description string
+	Depth       int16
+	CreatedAt   time.Time
 }
 
 type ListingState struct {
@@ -33,9 +35,10 @@ type Repository interface {
 	RunInTx(ctx context.Context, fn func(context.Context) error) error
 	LockListing(ctx context.Context, listingID uuid.UUID) (*ListingState, error)
 	ResolveBaseCategory(ctx context.Context, slug string) (uuid.UUID, error)
+	ListActiveCategories(ctx context.Context, baseCategoryID uuid.UUID) ([]Category, error)
 	ClassifyListing(ctx context.Context, listingID, baseCategoryID uuid.UUID, descriptionClean string) error
-	FindSimilar(ctx context.Context, baseCategoryID uuid.UUID, embedding []float32, threshold float64) (*Category, error)
-	CreateCategory(ctx context.Context, baseCategoryID uuid.UUID, name, slug string, embedding []float32) (*Category, error)
+	FindCategory(ctx context.Context, baseCategoryID uuid.UUID, parentID *uuid.UUID, name, slug string) (*Category, error)
+	CreateCategory(ctx context.Context, baseCategoryID uuid.UUID, parentID *uuid.UUID, name, slug, description string, depth int16, embedding []float32) (*Category, error)
 	AttachCategory(ctx context.Context, listingID, categoryID, baseCategoryID uuid.UUID) error
 	UpsertGigDetails(ctx context.Context, listingID uuid.UUID, details *extractor.ExtractedGigDetails, expiresAt *time.Time) error
 	UpsertSaleDetails(ctx context.Context, listingID uuid.UUID, details *extractor.ExtractedSaleDetails, expiresAt *time.Time) error
@@ -71,7 +74,7 @@ func (r *repository) LockListing(ctx context.Context, listingID uuid.UUID) (*Lis
 	if state.Status == "OPEN" {
 		state.Category = &Category{}
 		err = dbtx.Extract(ctx, r.db).QueryRow(ctx, `
-			SELECT c.id, c.name, c.slug, c.created_at,
+			SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.depth, c.created_at,
 			       COALESCE(gd.title, sd.title)
 			FROM listing_categories lc
 			JOIN categories c ON c.id = lc.category_id
@@ -83,8 +86,11 @@ func (r *repository) LockListing(ctx context.Context, listingID uuid.UUID) (*Lis
 			LIMIT 1
 		`, listingID).Scan(
 			&state.Category.ID,
+			&state.Category.ParentID,
 			&state.Category.Name,
 			&state.Category.Slug,
+			&state.Category.Description,
+			&state.Category.Depth,
 			&state.Category.CreatedAt,
 			&state.Title,
 		)
@@ -104,6 +110,56 @@ func (r *repository) ResolveBaseCategory(ctx context.Context, slug string) (uuid
 		WHERE slug = $1 AND is_active = TRUE
 	`, slug).Scan(&id)
 	return id, err
+}
+
+func (r *repository) ListActiveCategories(
+	ctx context.Context,
+	baseCategoryID uuid.UUID,
+) ([]Category, error) {
+	rows, err := dbtx.Extract(ctx, r.db).Query(ctx, `
+		WITH RECURSIVE tree AS (
+			SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.depth,
+			       c.created_at, ARRAY[c.slug]::text[] AS sort_path
+			FROM categories c
+			WHERE c.base_category_id = $1
+			  AND c.parent_id IS NULL
+			  AND c.is_active = TRUE
+
+			UNION ALL
+
+			SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.depth,
+			       c.created_at, tree.sort_path || c.slug
+			FROM categories c
+			JOIN tree ON c.parent_id = tree.id
+			WHERE c.base_category_id = $1
+			  AND c.is_active = TRUE
+		)
+		SELECT id, parent_id, name, slug, description, depth, created_at
+		FROM tree
+		ORDER BY sort_path
+	`, baseCategoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []Category
+	for rows.Next() {
+		var category Category
+		if err := rows.Scan(
+			&category.ID,
+			&category.ParentID,
+			&category.Name,
+			&category.Slug,
+			&category.Description,
+			&category.Depth,
+			&category.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		categories = append(categories, category)
+	}
+	return categories, rows.Err()
 }
 
 func (r *repository) ClassifyListing(
@@ -126,53 +182,106 @@ func (r *repository) ClassifyListing(
 	return nil
 }
 
-func (r *repository) FindSimilar(
+func (r *repository) FindCategory(
 	ctx context.Context,
 	baseCategoryID uuid.UUID,
-	embedding []float32,
-	threshold float64,
+	parentID *uuid.UUID,
+	name, slug string,
 ) (*Category, error) {
-	vec := pgvector.NewVector(embedding)
-	var cat Category
-	var storedVec pgvector.Vector
+	scope := baseCategoryID.String() + ":root"
+	if parentID != nil {
+		scope = baseCategoryID.String() + ":" + parentID.String()
+	}
+	if _, err := dbtx.Extract(ctx, r.db).Exec(
+		ctx,
+		`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+		scope,
+	); err != nil {
+		return nil, fmt.Errorf("lock category scope: %w", err)
+	}
 
+	var category Category
 	err := dbtx.Extract(ctx, r.db).QueryRow(ctx, `
-		SELECT c.id, c.name, c.slug, c.created_at, c.embedding
+		SELECT c.id, c.parent_id, c.name, c.slug, c.description, c.depth, c.created_at
 		FROM categories c
 		WHERE c.base_category_id = $1
-		ORDER BY c.embedding <=> $2
+		  AND c.parent_id IS NOT DISTINCT FROM $2
+		  AND c.is_active = TRUE
+		  AND (c.slug = $3 OR lower(c.name) = lower($4))
+		ORDER BY (c.slug = $3) DESC
 		LIMIT 1
-	`, baseCategoryID, vec).Scan(&cat.ID, &cat.Name, &cat.Slug, &cat.CreatedAt, &storedVec)
+	`, baseCategoryID, parentID, slug, name).Scan(
+		&category.ID,
+		&category.ParentID,
+		&category.Name,
+		&category.Slug,
+		&category.Description,
+		&category.Depth,
+		&category.CreatedAt,
+	)
+	if err == nil {
+		return &category, nil
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, err
-	}
-	if cosineSimilarity(embedding, storedVec.Slice()) < threshold {
-		return nil, nil
-	}
-	return &cat, nil
+	return nil, err
 }
 
 func (r *repository) CreateCategory(
 	ctx context.Context,
 	baseCategoryID uuid.UUID,
-	name, slug string,
+	parentID *uuid.UUID,
+	name, slug, description string,
+	depth int16,
 	embedding []float32,
 ) (*Category, error) {
 	cat := &Category{}
 	vec := pgvector.NewVector(embedding)
 
 	err := dbtx.Extract(ctx, r.db).QueryRow(ctx, `
-		INSERT INTO categories (id, base_category_id, name, slug, embedding)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (base_category_id, slug)
-		DO UPDATE SET name = EXCLUDED.name
-		RETURNING id, name, slug, created_at
-	`, uuid.New(), baseCategoryID, name, slug, vec).Scan(
-		&cat.ID, &cat.Name, &cat.Slug, &cat.CreatedAt,
+		INSERT INTO categories (
+			id, base_category_id, parent_id, name, slug, description, depth, embedding
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT DO NOTHING
+		RETURNING id, parent_id, name, slug, description, depth, created_at
+	`, uuid.New(), baseCategoryID, parentID, name, slug, description, depth, vec).Scan(
+		&cat.ID,
+		&cat.ParentID,
+		&cat.Name,
+		&cat.Slug,
+		&cat.Description,
+		&cat.Depth,
+		&cat.CreatedAt,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = dbtx.Extract(ctx, r.db).QueryRow(ctx, `
+			UPDATE categories
+			SET description = $5,
+			    embedding = $6,
+			    is_active = TRUE,
+			    updated_at = NOW()
+			WHERE id = (
+				SELECT id
+				FROM categories
+				WHERE base_category_id = $1
+				  AND parent_id IS NOT DISTINCT FROM $2
+				  AND (slug = $3 OR name = $4)
+				ORDER BY (slug = $3) DESC
+				LIMIT 1
+			)
+			RETURNING id, parent_id, name, slug, description, depth, created_at
+		`, baseCategoryID, parentID, slug, name, description, vec).Scan(
+			&cat.ID,
+			&cat.ParentID,
+			&cat.Name,
+			&cat.Slug,
+			&cat.Description,
+			&cat.Depth,
+			&cat.CreatedAt,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -275,20 +384,4 @@ func (r *repository) OpenListing(ctx context.Context, listingID uuid.UUID) error
 
 func (r *repository) RunInTx(ctx context.Context, fn func(context.Context) error) error {
 	return dbtx.RunInTx(ctx, r.db, fn)
-}
-
-func cosineSimilarity(a, b []float32) float64 {
-	if len(a) != len(b) {
-		return 0
-	}
-	var dot, normA, normB float64
-	for i := range a {
-		dot += float64(a[i]) * float64(b[i])
-		normA += float64(a[i]) * float64(a[i])
-		normB += float64(b[i]) * float64(b[i])
-	}
-	if normA == 0 || normB == 0 {
-		return 0
-	}
-	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
 }

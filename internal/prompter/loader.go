@@ -8,6 +8,9 @@ import (
 //go:embed prompts/base_category.txt
 var baseCategoryPrompt string
 
+//go:embed prompts/category_path.txt
+var categoryPathPrompt string
+
 //go:embed prompts/profession.txt
 var professionPrompt string
 

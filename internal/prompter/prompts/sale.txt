@@ -2,7 +2,6 @@ Extract structured sale details from the Turkish marketplace text.
 
 Return valid JSON only:
 {
-  "category": "",
   "title": "",
   "price_amount": null,
   "price_currency": null,
@@ -14,7 +13,6 @@ Return valid JSON only:
 }
 
 Rules:
-- category is the primary item type in normalized, singular Turkish.
 - title is a short natural Turkish marketplace title, maximum 80 characters.
 - pricing_type is fixed, negotiable, free, or contact.
 - fixed and negotiable require a positive price and ISO-4217 currency.

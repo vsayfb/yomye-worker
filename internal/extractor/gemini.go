@@ -20,11 +20,7 @@ func NewGeminiExtractor(cfg *config.AIConfig) *GeminiExtractor {
 	}
 }
 
-func (g *GeminiExtractor) Extract(
-	ctx context.Context,
-	description string,
-) (*ExtractedListing, error) {
-
+func (g *GeminiExtractor) client(ctx context.Context) (*genai.Client, error) {
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  g.cfg.APIKey,
 		Backend: genai.BackendGeminiAPI,
@@ -32,13 +28,26 @@ func (g *GeminiExtractor) Extract(
 	if err != nil {
 		return nil, fmt.Errorf("creating gemini client: %w", err)
 	}
+	return client, nil
+}
 
+func (g *GeminiExtractor) Classify(ctx context.Context, description string) (string, error) {
+	client, err := g.client(ctx)
+	if err != nil {
+		return "", err
+	}
 	rawCategory, err := g.generate(ctx, client, prompter.BaseCategoryPrompt(), description)
 	if err != nil {
-		return nil, fmt.Errorf("classify base category: %w", err)
+		return "", fmt.Errorf("classify base category: %w", err)
 	}
+	return decodeBaseCategory(rawCategory)
+}
 
-	baseCategorySlug, err := decodeBaseCategory(rawCategory)
+func (g *GeminiExtractor) Extract(
+	ctx context.Context,
+	description, baseCategorySlug, catalog string,
+) (*ExtractedListing, error) {
+	client, err := g.client(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -48,12 +57,26 @@ func (g *GeminiExtractor) Extract(
 		detailsPrompt = prompter.SalePrompt()
 	}
 
+	rawPath, err := g.generate(
+		ctx,
+		client,
+		prompter.CategoryPathPrompt(baseCategorySlug, catalog),
+		description,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("extract category path: %w", err)
+	}
+	categoryPath, err := decodeCategoryPath(rawPath)
+	if err != nil {
+		return nil, err
+	}
+
 	rawDetails, err := g.generate(ctx, client, detailsPrompt, description)
 	if err != nil {
 		return nil, fmt.Errorf("extract %s details: %w", baseCategorySlug, err)
 	}
 
-	return decodeDetails(baseCategorySlug, rawDetails)
+	return decodeDetails(baseCategorySlug, categoryPath, rawDetails)
 }
 
 func (g *GeminiExtractor) generate(

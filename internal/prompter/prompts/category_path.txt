@@ -1,0 +1,37 @@
+Place a Turkish marketplace listing into a stable, reusable category hierarchy.
+
+Listing family: %s
+
+Current active hierarchy:
+%s
+
+Return valid JSON only:
+{
+  "category_path": [
+    {"name": "", "description": ""}
+  ]
+}
+
+Rules:
+- Reuse an existing path, with its exact names, whenever it reasonably describes the listing.
+- Create a new node only when no existing sibling represents the same general concept.
+- A category represents a reusable domain, profession, or product type—not the wording, object,
+  symptom, individual task, brand, model, or one-off request in the listing.
+- Determine the hierarchy from the actual occupation or product domain, not from generic verbs
+  such as repair, manage, support, build, sell, or work.
+- A root must be a coherent long-lived sector. Do not use broad cross-sector catch-alls such as
+  "İş ve Profesyonel Hizmetler" or activity labels such as "Bakım ve Onarım".
+- An intermediate node must be a recognized subdomain, not a sentence or description.
+- For gig listings, the leaf must be a recognized reusable profession or service-provider role,
+  not a particular task performed by that profession.
+- For sale listings, the leaf must be a reusable item type, never a brand or model.
+- Order nodes from broad domain to specific category.
+- Prefer 2 or 3 meaningful levels; never return more than 4.
+- Avoid redundant levels and nodes with nearly identical meanings.
+- Use concise, normalized Turkish names and short Turkish descriptions.
+- Translate foreign-language job titles into established natural Turkish occupational titles.
+  Never produce mixed-language titles or literal word-for-word inventions.
+- Existing categories are suggestions, not authority: never reuse an existing path whose parent
+  is semantically wrong for the requested occupation or product.
+- Do not use "Diğer", "Genel", or catch-all categories when a meaningful category is possible.
+- Do not force a listing into the current hierarchy when it genuinely belongs to a missing branch.

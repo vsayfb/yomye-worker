@@ -107,5 +107,7 @@ func (p *SQSPublisher) PublishGigCategoryMatched(ctx context.Context, event GigC
 }
 
 func (p *SQSPublisher) Close() error {
-	return p.Close()
+	// AWS SDK service clients do not own a closeable connection pool. Their
+	// underlying HTTP transport is shared and cleaned up by the process.
+	return nil
 }

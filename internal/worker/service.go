@@ -14,8 +14,6 @@ import (
 	"github.com/vsayfb/gig-platform-categorization-service/internal/extractor"
 )
 
-const similarityThreshold = 0.75
-
 const (
 	BaseCategoryGig     = "gig"
 	BaseCategoryForSale = "for-sale"
@@ -35,6 +33,11 @@ type ProcessResult struct {
 	BaseCategorySlug string
 	Title            string
 	AlreadyOpen      bool
+}
+
+type embeddedCategoryNode struct {
+	Node      extractor.ExtractedCategoryNode
+	Embedding []float32
 }
 
 type Service struct {
@@ -65,8 +68,27 @@ func (s *Service) ProcessListing(
 ) (*ProcessResult, error) {
 	slog.InfoContext(ctx, "process listing", "listing_id", listingID, "description_len", len(description))
 
-	extracted, err := s.fallback.Extract(ctx, description)
+	baseCategorySlug, err := s.fallback.Classify(ctx, description)
+	if err != nil {
+		return nil, fmt.Errorf("classify listing: %w", err)
+	}
 
+	baseCategoryID, err := s.repo.ResolveBaseCategory(ctx, baseCategorySlug)
+	if err != nil {
+		return nil, fmt.Errorf("resolve base category %q: %w", baseCategorySlug, err)
+	}
+
+	activeCategories, err := s.repo.ListActiveCategories(ctx, baseCategoryID)
+	if err != nil {
+		return nil, fmt.Errorf("list active categories: %w", err)
+	}
+
+	extracted, err := s.fallback.Extract(
+		ctx,
+		description,
+		baseCategorySlug,
+		formatCategoryCatalog(activeCategories),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("extract listing details: %w", err)
 	}
@@ -75,9 +97,16 @@ func (s *Service) ProcessListing(
 		return nil, err
 	}
 
-	embedding, err := s.embeddingClient.Embed(ctx, extracted.Category)
-	if err != nil {
-		return nil, fmt.Errorf("generate category embedding: %w", err)
+	embeddedPath := make([]embeddedCategoryNode, 0, len(extracted.CategoryPath))
+	for _, node := range extracted.CategoryPath {
+		embedding, err := s.embeddingClient.Embed(ctx, node.Name+"\n"+node.Description)
+		if err != nil {
+			return nil, fmt.Errorf("generate category embedding for %q: %w", node.Name, err)
+		}
+		embeddedPath = append(embeddedPath, embeddedCategoryNode{
+			Node:      node,
+			Embedding: embedding,
+		})
 	}
 
 	result := &ProcessResult{
@@ -102,11 +131,6 @@ func (s *Service) ProcessListing(
 			return fmt.Errorf("listing has non-processable status %q", state.Status)
 		}
 
-		baseCategoryID, err := s.repo.ResolveBaseCategory(txCtx, extracted.BaseCategorySlug)
-		if err != nil {
-			return fmt.Errorf("resolve base category %q: %w", extracted.BaseCategorySlug, err)
-		}
-
 		if err := s.repo.ClassifyListing(
 			txCtx,
 			listingID,
@@ -116,21 +140,36 @@ func (s *Service) ProcessListing(
 			return fmt.Errorf("classify listing: %w", err)
 		}
 
-		category, err := s.repo.FindSimilar(txCtx, baseCategoryID, embedding, similarityThreshold)
-		if err != nil {
-			return fmt.Errorf("find similar category: %w", err)
-		}
-		if category == nil {
-			category, err = s.repo.CreateCategory(
+		var parentID *uuid.UUID
+		var category *Category
+		for depth, embedded := range embeddedPath {
+			category, err = s.repo.FindCategory(
 				txCtx,
 				baseCategoryID,
-				extracted.Category,
-				slug.Make(extracted.Category),
-				embedding,
+				parentID,
+				embedded.Node.Name,
+				slug.Make(embedded.Node.Name),
 			)
 			if err != nil {
-				return fmt.Errorf("create category: %w", err)
+				return fmt.Errorf("find similar category at depth %d: %w", depth, err)
 			}
+			if category == nil {
+				category, err = s.repo.CreateCategory(
+					txCtx,
+					baseCategoryID,
+					parentID,
+					embedded.Node.Name,
+					slug.Make(embedded.Node.Name),
+					embedded.Node.Description,
+					int16(depth),
+					embedded.Embedding,
+				)
+				if err != nil {
+					return fmt.Errorf("create category at depth %d: %w", depth, err)
+				}
+			}
+			id := category.ID
+			parentID = &id
 		}
 		result.Category = category
 
@@ -170,10 +209,23 @@ func validateExtraction(e *extractor.ExtractedListing) error {
 		return fmt.Errorf("%w: empty response", ErrInvalidExtraction)
 	}
 	e.BaseCategorySlug = strings.TrimSpace(e.BaseCategorySlug)
-	e.Category = strings.TrimSpace(e.Category)
-	if e.Category == "" {
+	if len(e.CategoryPath) == 0 {
 		return ErrCategoryNotDetected
 	}
+	if len(e.CategoryPath) > 4 {
+		return fmt.Errorf("%w: category path exceeds 4 levels", ErrInvalidExtraction)
+	}
+	for i := range e.CategoryPath {
+		e.CategoryPath[i].Name = strings.TrimSpace(e.CategoryPath[i].Name)
+		e.CategoryPath[i].Description = strings.TrimSpace(e.CategoryPath[i].Description)
+		if e.CategoryPath[i].Name == "" || e.CategoryPath[i].Description == "" {
+			return fmt.Errorf("%w: category path node %d is incomplete", ErrInvalidExtraction, i)
+		}
+		if i > 0 && strings.EqualFold(e.CategoryPath[i-1].Name, e.CategoryPath[i].Name) {
+			return fmt.Errorf("%w: duplicate adjacent category %q", ErrInvalidExtraction, e.CategoryPath[i].Name)
+		}
+	}
+	leafName := e.CategoryPath[len(e.CategoryPath)-1].Name
 
 	switch e.BaseCategorySlug {
 	case BaseCategoryGig:
@@ -181,7 +233,7 @@ func validateExtraction(e *extractor.ExtractedListing) error {
 			return fmt.Errorf("%w: gig details shape", ErrInvalidExtraction)
 		}
 		e.Gig.Title = strings.TrimSpace(e.Gig.Title)
-		e.Gig.Profession = strings.TrimSpace(e.Gig.Profession)
+		e.Gig.Profession = leafName
 		e.Gig.PayCurrency = strings.ToUpper(strings.TrimSpace(e.Gig.PayCurrency))
 		if e.Gig.Title == "" || e.Gig.Profession == "" {
 			return fmt.Errorf("%w: missing gig title or profession", ErrInvalidExtraction)
@@ -258,4 +310,17 @@ func extractedTitle(e *extractor.ExtractedListing) string {
 		return e.Sale.Title
 	}
 	return ""
+}
+
+func formatCategoryCatalog(categories []Category) string {
+	var builder strings.Builder
+	for _, category := range categories {
+		builder.WriteString(strings.Repeat("  ", int(category.Depth)))
+		builder.WriteString("- ")
+		builder.WriteString(category.Name)
+		builder.WriteString(": ")
+		builder.WriteString(category.Description)
+		builder.WriteByte('\n')
+	}
+	return strings.TrimSpace(builder.String())
 }

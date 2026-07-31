@@ -2,7 +2,6 @@ Extract structured gig details from the Turkish marketplace text.
 
 Return valid JSON only:
 {
-  "category": "",
   "title": "",
   "profession": "",
   "duration_type": "",
@@ -12,7 +11,7 @@ Return valid JSON only:
 }
 
 Rules:
-- category and profession are the same primary profession in normalized, singular Turkish.
+- profession is the recognized reusable profession or service-provider role.
 - title is a short natural Turkish marketplace title, maximum 80 characters.
 - duration_type is ONE_TIME, HOURLY, DAILY, WEEKLY, MONTHLY, or an empty string.
 - pay_amount is numeric or null.
