@@ -194,6 +194,41 @@ func TestProcessMessage_HandlerErrorDoesNotDeleteMessage(t *testing.T) {
 	}
 }
 
+func TestReceiveBackoffIsExponentialAndCapped(t *testing.T) {
+	tests := []struct {
+		failures int
+		want     time.Duration
+	}{
+		{failures: 0, want: time.Second},
+		{failures: 1, want: time.Second},
+		{failures: 2, want: 2 * time.Second},
+		{failures: 3, want: 4 * time.Second},
+		{failures: 5, want: 16 * time.Second},
+		{failures: 6, want: 30 * time.Second},
+		{failures: 100, want: 30 * time.Second},
+	}
+
+	for _, tt := range tests {
+		if got := receiveBackoff(tt.failures); got != tt.want {
+			t.Errorf("receiveBackoff(%d) = %s, want %s", tt.failures, got, tt.want)
+		}
+	}
+}
+
+func TestWaitForReceiveRetryStopsOnContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	started := time.Now()
+	err := waitForReceiveRetry(ctx, time.Minute)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("waitForReceiveRetry() error = %v, want context.Canceled", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("canceled retry wait took %s", elapsed)
+	}
+}
+
 // TestRun_RespectsConcurrencyBound dispatches more messages than the
 // configured concurrency and proves, via a handler that blocks until
 // released, that no more than `concurrency` are ever in flight at once.

@@ -29,7 +29,11 @@ var tracer = otel.Tracer("worker")
 // deliberately independent of the worker's shutdown context: in-flight work
 // is given up to this long to finish cleanly on SIGTERM rather than being
 // cut off mid-transaction, but a stuck AI/DB call still can't hang forever.
-const messageProcessingTimeout = 2 * time.Minute
+const (
+	messageProcessingTimeout = 2 * time.Minute
+	minimumReceiveBackoff    = time.Second
+	maximumReceiveBackoff    = 30 * time.Second
+)
 
 // sqsClient is the subset of *sqs.Client this package actually calls. Having
 // it as an interface (rather than depending on the concrete AWS SDK type
@@ -82,6 +86,7 @@ func (w *Worker) Run(ctx context.Context) error {
 
 	sem := make(chan struct{}, w.concurrency)
 	var wg sync.WaitGroup
+	receiveFailures := 0
 
 	defer func() {
 		slog.Info("draining in-flight messages before shutdown")
@@ -107,9 +112,21 @@ func (w *Worker) Run(ctx context.Context) error {
 				return ctx.Err()
 			}
 
-			slog.ErrorContext(ctx, "receive failed", "err", err)
+			receiveFailures++
+			retryIn := receiveBackoff(receiveFailures)
+			slog.ErrorContext(
+				ctx,
+				"receive failed",
+				"err", err,
+				"consecutive_failures", receiveFailures,
+				"retry_in", retryIn,
+			)
+			if err := waitForReceiveRetry(ctx, retryIn); err != nil {
+				return err
+			}
 			continue
 		}
+		receiveFailures = 0
 
 		for _, m := range resp.Messages {
 			select {
@@ -135,6 +152,36 @@ func (w *Worker) Run(ctx context.Context) error {
 				w.handleMessageSafely(workCtx, m)
 			}(m)
 		}
+	}
+}
+
+func receiveBackoff(consecutiveFailures int) time.Duration {
+	if consecutiveFailures <= 1 {
+		return minimumReceiveBackoff
+	}
+
+	delay := minimumReceiveBackoff
+	for attempt := 1; attempt < consecutiveFailures; attempt++ {
+		if delay >= maximumReceiveBackoff/2 {
+			return maximumReceiveBackoff
+		}
+		delay *= 2
+	}
+	if delay > maximumReceiveBackoff {
+		return maximumReceiveBackoff
+	}
+	return delay
+}
+
+func waitForReceiveRetry(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
