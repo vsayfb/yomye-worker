@@ -32,7 +32,7 @@ func (f *FallbackExtractor) Extract(
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		errs = append(errs, err)
+		errs = append(errs, fmt.Errorf("%s: %w", e.Generator(), err))
 	}
 
 	if len(errs) > 0 {
@@ -53,7 +53,7 @@ func (f *FallbackExtractor) Classify(ctx context.Context, description string) (s
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		errs = append(errs, err)
+		errs = append(errs, fmt.Errorf("%s: %w", e.Generator(), err))
 	}
 
 	if len(errs) > 0 {

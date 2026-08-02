@@ -1,0 +1,273 @@
+Musluğum bozuldu, çözebilecek bir ustaya ihtiyacım var.
+Lavabom tıkandı, açabilecek bir tesisatçı arıyorum.
+Evde su kaçağı var, kontrol edebilecek bir uzmana ihtiyacım var.
+Kombim çalışmıyor, tamir edebilecek bir servis arıyorum.
+Klimam yeterince soğutmuyor, bakım yapabilecek bir teknisyene ihtiyacım var.
+Prizlerden biri çalışmıyor, kontrol edebilecek bir elektrikçi arıyorum.
+Evin elektrik tesisatını yenileyebilecek bir ekip arıyorum.
+Kapının kilidi bozuldu, değiştirebilecek bir çilingire ihtiyacım var.
+Pencereler hava geçiriyor, onarabilecek bir usta arıyorum.
+Çatım su akıtıyor, tamir edebilecek bir ekip arıyorum.
+Duvarlarda nem oluştu, sebebini bulabilecek bir uzmana ihtiyacım var.
+Evimi boyatmak istiyorum, temiz çalışan bir boyacı arıyorum.
+Parkelerim zarar gördü, yenileyebilecek bir usta arıyorum.
+Mutfak dolaplarını değiştirebilecek bir marangoz arıyorum.
+Banyo fayanslarını yenileyebilecek bir ekip arıyorum.
+Bahçe duvarını onarabilecek bir ustaya ihtiyacım var.
+Balkonuma cam yaptırmak istiyorum, bu işi yapabilecek bir firma arıyorum.
+Evime sineklik takabilecek birine ihtiyacım var.
+Salonuma özel ölçü kitaplık yapabilecek bir marangoz arıyorum.
+Taşınma öncesi evi detaylı temizleyebilecek bir ekip arıyorum.
+Evimi haftada bir temizleyebilecek güvenilir birini arıyorum.Ofisimizin düzenli temizliğini yapabilecek bir firma arıyoruz.
+Koltuğumu yerinde yıkayabilecek bir temizlik şirketine ihtiyacım var.
+Halılarımı yıkayıp teslim edebilecek bir firma arıyorum.
+İnşaat sonrası temizlik yapabilecek bir ekip arıyorum.
+Bahçemdeki ağaçları budayabilecek bir bahçıvan arıyorum.
+Çimlerimin bakımını düzenli yapabilecek birine ihtiyacım var.
+Bahçeme otomatik sulama sistemi kurabilecek bir firma arıyorum.
+Evimdeki haşere sorununu çözebilecek bir ilaçlama şirketi arıyorum.
+Depomu düzenleyip temizleyebilecek birkaç kişiye ihtiyacım var.
+Buzdolabım soğutmuyor, tamir edebilecek bir teknisyen arıyorum.
+Çamaşır makinem su boşaltmıyor, tamirciye ihtiyacım var.
+Bulaşık makinem çalışırken ses çıkarıyor, kontrol edebilecek birini arıyorum.
+Televizyonum açılmıyor, tamir edebilecek bir servis arıyorum.
+Fırınım düzgün ısınmıyor, onarabilecek bir teknisyene ihtiyacım var.
+Robot süpürgem arızalandı, tamir edebilecek bir servis arıyorum.
+Kahve makinem su akıtıyor, bakım yapabilecek birini arıyorum.
+Bilgisayarım çok yavaşladı, hızlandırabilecek bir teknisyene ihtiyacım var.
+Laptopumun ekranı kırıldı, değiştirebilecek bir servis arıyorum.
+Telefonumun bataryasını değiştirebilecek güvenilir bir teknik servis arıyorum.
+Bilgisayarımdaki silinen dosyaları kurtarabilecek bir uzmana ihtiyacım var.
+Evdeki internet bağlantısını iyileştirebilecek bir ağ uzmanı arıyorum.
+Ofisimize kamera sistemi kurabilecek bir firma arıyoruz.
+Sunucumuzdaki problemi inceleyebilecek bir sistem yöneticisine ihtiyacımız var.
+Şirket ağımızın güvenliğini test edebilecek bir siber güvenlik uzmanı arıyoruz.
+Web sitemi sıfırdan geliştirebilecek bir yazılımcı arıyorum.
+Mevcut web sitemdeki hataları düzeltebilecek bir geliştiriciye ihtiyacım var.
+Mobil uygulamamı Android ve iOS için geliştirebilecek bir ekip arıyorum.
+Uygulamamın kullanıcı arayüzünü yenileyebilecek bir tasarımcı arıyorum.
+Bir API entegrasyonu yapabilecek deneyimli bir yazılımcı arıyorum.
+Golang projemdeki performans sorunlarını inceleyebilecek bir geliştirici arıyorum.
+Veritabanımı optimize edebilecek bir uzmana ihtiyacım var.
+Eski sistemimizi buluta taşıyabilecek bir DevOps uzmanı arıyoruz.
+Projemiz için otomatik testler yazabilecek bir test mühendisi arıyoruz.
+Yazılım projemizin kod incelemesini yapabilecek bir danışman arıyoruz.
+Şirket içi bir yönetim paneli geliştirebilecek freelancer arıyorum.
+WordPress sitemi hızlandırabilecek bir uzmana ihtiyacım var.
+E-ticaret siteme ödeme sistemi ekleyebilecek bir geliştirici arıyorum.
+Ürünümüz için yapay zekâ tabanlı bir özellik geliştirebilecek ekip arıyoruz.
+Elimdeki verileri analiz edebilecek bir veri bilimciye ihtiyacım var.
+Excel raporlarımı otomatikleştirebilecek bir uzmana ihtiyacım var.
+Şirketim için profesyonel bir logo tasarlayabilecek grafik tasarımcı arıyorum.
+Markamızın kurumsal kimliğini hazırlayabilecek bir ajans arıyoruz.
+Sosyal medya gönderileri için tasarımlar hazırlayabilecek birini arıyorum.
+Ürün ambalajımızı tasarlayabilecek deneyimli bir tasarımcı arıyoruz.
+Sunumumu daha profesyonel hale getirebilecek bir tasarımcıya ihtiyacım var.
+Restoranım için menü tasarlayabilecek bir grafik tasarımcı arıyorum.
+YouTube kanalım için kapak görselleri hazırlayabilecek birini arıyorum.
+Bir kitap kapağı tasarlayabilecek illüstratöre ihtiyacım var.
+Çocuk kitabım için çizimler yapabilecek bir sanatçı arıyorum.
+Ürünümüzün üç boyutlu modelini hazırlayabilecek bir tasarımcı arıyoruz.
+Evimin iç dekorasyonunu planlayabilecek bir iç mimara ihtiyacım var.
+Ofisimizin yerleşimini yeniden tasarlayabilecek bir mimar arıyoruz.
+Yeni açacağımız kafe için konsept tasarlayabilecek bir ekip arıyoruz.
+Mutfağım için ölçüye uygun proje hazırlayabilecek bir iç mimar arıyorum.
+Evin salonunu daha kullanışlı hale getirecek öneriler verebilecek bir dekoratör arıyorum.
+Ürünlerimin profesyonel fotoğraflarını çekebilecek bir fotoğrafçı arıyorum.
+Düğünümüzü çekebilecek deneyimli bir fotoğrafçı arıyoruz.
+Etkinliğimiz için video çekimi yapabilecek bir ekip arıyoruz.
+Şirket tanıtım filmimizi hazırlayabilecek bir prodüksiyon şirketi arıyoruz.
+YouTube videolarımı kurgulayabilecek bir editöre ihtiyacım var.
+Kısa reklam videoları hazırlayabilecek bir içerik üreticisi arıyorum.
+Podcast kayıtlarımın ses düzenlemesini yapabilecek birini arıyorum.
+Projem için profesyonel seslendirme yapabilecek bir sanatçı arıyorum.
+Bir şarkının miks ve mastering işlemlerini yapabilecek uzman arıyorum.
+Etkinlikte drone çekimi yapabilecek lisanslı bir operatör arıyorum.
+Sosyal medya hesaplarımızı düzenli yönetebilecek bir uzman arıyoruz.
+Instagram hesabımız için içerik planı hazırlayabilecek bir danışman arıyoruz.
+Markamız için reklam kampanyası oluşturabilecek bir ajans arıyoruz.
+Google Ads kampanyalarımızı optimize edebilecek bir uzman arıyoruz.
+Web sitemizin arama sonuçlarında yükselmesini sağlayabilecek SEO uzmanı arıyoruz.
+E-posta pazarlama kampanyaları hazırlayabilecek birine ihtiyacımız var.
+Yeni ürünümüz için lansman stratejisi oluşturabilecek danışman arıyoruz.
+Rakip analizi yapabilecek bir pazarlama uzmanına ihtiyacımız var.
+Müşteri anketlerimizi analiz edebilecek bir araştırmacı arıyoruz.
+Markamız için yaratıcı sloganlar yazabilecek bir metin yazarı arıyoruz.
+Blog yazılarımızı hazırlayabilecek deneyimli bir içerik yazarı arıyoruz.
+Ürün açıklamalarımızı daha etkileyici yazabilecek bir metin yazarı arıyoruz.
+Web sitemizdeki metinleri İngilizceye çevirebilecek bir tercüman arıyorum.
+Teknik dokümanlarımızı Türkçeye çevirebilecek bir çevirmen arıyoruz.
+Resmî belgelerimi yeminli tercüme edebilecek bir büro arıyorum.
+Akademik makalemin dil kontrolünü yapabilecek bir editöre ihtiyacım var.
+Özgeçmişimi daha profesyonel hale getirebilecek bir kariyer danışmanı arıyorum.
+LinkedIn profilimi düzenleyebilecek bir uzmana ihtiyacım var.
+İş görüşmesine hazırlanmama yardımcı olabilecek bir danışman arıyorum.
+Şirket sunumumuzdaki metinleri sadeleştirebilecek bir editör arıyoruz.
+Kitabımın redaksiyonunu yapabilecek deneyimli bir editör arıyorum.
+Matematik derslerinde yardımcı olabilecek özel ders öğretmeni arıyorum.
+Çocuğuma İngilizce öğretebilecek sabırlı bir öğretmen arıyorum.
+Üniversite sınavına hazırlık için fizik öğretmenine ihtiyacım var.
+Almanca konuşma pratiği yapabileceğim bir eğitmen arıyorum.
+Kodlama öğrenmeme yardımcı olabilecek bir mentor arıyorum.
+Golang konusunda ileri seviye ders verebilecek bir yazılımcı arıyorum.
+Veri yapıları ve algoritmalar konusunda destek olabilecek eğitmen arıyorum.
+Çocuğuma piyano dersi verebilecek bir öğretmen arıyorum.
+Gitar çalmayı öğretebilecek deneyimli bir eğitmen arıyorum.
+Resim yeteneğimi geliştirmeme yardımcı olacak bir sanat öğretmeni arıyorum.
+Tezimin istatistik analizinde yardımcı olabilecek bir akademisyen arıyorum.
+Yüksek lisans başvurum için niyet mektubumu değerlendirebilecek bir danışman arıyorum.
+Yurt dışı eğitim başvurularında yardımcı olabilecek bir danışmanlık firması arıyorum.
+Konuşma bozukluğu yaşayan çocuğum için uzman desteğine ihtiyacım var.
+Sınav programı hazırlamama yardımcı olabilecek bir eğitim koçu arıyorum.
+Düzenli bir spor programı hazırlayabilecek kişisel antrenör arıyorum.
+Evde yoga dersi verebilecek bir eğitmene ihtiyacım var.
+Yüzme öğrenmeme yardımcı olabilecek bir antrenör arıyorum.
+Koşu performansımı geliştirebilecek bir antrenör arıyorum.
+Futbol takımımıza kondisyon çalıştırabilecek bir eğitmen arıyoruz.
+Sağlıklı beslenme planı hazırlayabilecek bir diyetisyen arıyorum.
+Postürümü düzeltmek için egzersiz programı hazırlayabilecek bir uzman arıyorum.
+Doğum sonrası spora dönüş sürecimde yardımcı olabilecek bir antrenör arıyorum.
+Çocuğuma tenis dersi verebilecek bir eğitmen arıyorum.
+Dans etmeyi öğretebilecek özel ders hocası arıyorum.
+Düğünümüzde ilk dans için koreografi hazırlayabilecek bir eğitmen arıyoruz.
+Meditasyon yapmayı öğretebilecek bir eğitmene ihtiyacım var.
+Köpeğimi her gün gezdirebilecek güvenilir birini arıyorum.
+Tatil süresince kedime bakabilecek bir hayvan bakıcısı arıyorum.
+Köpeğimin temel eğitimini verebilecek bir eğitmen arıyorum.
+Evcil hayvanımı veterinere götürebilecek birine ihtiyacım var.
+Akvaryumumun bakımını yapabilecek deneyimli birini arıyorum.
+Kedimin tüy bakımını yapabilecek bir pet kuaförü arıyorum.
+Seyahatteyken kuşlarımla ilgilenebilecek birini arıyorum.
+Köpeğim için uygun mama programı önerebilecek bir uzman arıyorum.
+Yeni sahiplendiğim köpeğin davranış sorunları için eğitmen arıyorum.
+Atımın günlük bakımına yardımcı olabilecek deneyimli bir bakıcı arıyorum.
+Çocuğumla akşamları ilgilenebilecek güvenilir bir bakıcı arıyorum.
+Bebeğime gündüzleri bakabilecek deneyimli bir bakıcıya ihtiyacım var.
+Yaşlı annemin günlük ihtiyaçlarıyla ilgilenebilecek bir yardımcı arıyorum.
+Hastane randevularında babama eşlik edebilecek birini arıyorum.
+Engelli yakınımın günlük yaşamına destek olabilecek bir bakıcı arıyorum.
+Çocuğumu okuldan alıp eve bırakabilecek güvenilir birini arıyorum.
+Hafta sonları çocuklarla etkinlik yapabilecek bir oyun ablası arıyorum.
+Yeni doğan bebeğimiz için gece desteği verebilecek deneyimli bir bakıcı arıyoruz.
+Yaşlı yakınımı düzenli yürüyüşe çıkarabilecek bir refakatçi arıyorum.
+Evde yemek ve günlük işleri yapabilecek yatılı yardımcı arıyorum.
+Taşınırken eşyalarımı güvenli şekilde taşıyabilecek bir nakliye firması arıyorum.
+Ofisimizi başka bir binaya taşıyabilecek profesyonel bir ekip arıyoruz.
+Ağır bir dolabı üst kata çıkarabilecek birkaç kişiye ihtiyacım var.
+Şehir dışına birkaç koli gönderebilecek uygun fiyatlı bir firma arıyorum.
+Mobilyalarımı söküp yeni evde kurabilecek bir nakliye ekibi arıyorum.
+Aracımı başka şehre taşıyabilecek bir çekici hizmeti arıyorum.
+Havalimanına gece ulaşım sağlayabilecek bir şoför arıyorum.
+Bir günlük araç ve şoför hizmetine ihtiyacım var.
+Düğün misafirlerini taşıyabilecek minibüs kiralamak istiyorum.
+Depodaki ürünleri mağazaya taşıyabilecek bir lojistik firması arıyoruz.
+Yeni ev bulmamda yardımcı olabilecek bir emlak danışmanı arıyorum.
+Evimi kiraya vermek için güvenilir bir emlakçı arıyorum.
+Satın almayı düşündüğüm evi inceleyebilecek bir ekspertiz uzmanı arıyorum.
+Kiralamadan önce sözleşmeyi kontrol edebilecek bir avukata ihtiyacım var.
+Arsamın değerini belirleyebilecek bir gayrimenkul uzmanı arıyorum.
+Yatırım için uygun bölgeleri analiz edebilecek bir danışman arıyorum.
+Ofis olarak kullanabileceğimiz bir yer bulabilecek emlak danışmanı arıyoruz.
+Kısa dönem kiralama sürecini yönetebilecek bir firma arıyorum.
+Evim için profesyonel ilan fotoğrafları çekebilecek birini arıyorum.
+Taşınmadan önce yeni evin ölçülerini alabilecek birine ihtiyacım var.
+Vergi işlemlerimde yardımcı olabilecek bir muhasebeci arıyorum.
+Şirket kuruluşu işlemlerini yürütebilecek bir mali müşavir arıyorum.
+Aylık gelir ve gider raporlarımızı hazırlayabilecek bir uzman arıyoruz.
+Faturalarımızı düzenli takip edebilecek bir ön muhasebe elemanı arıyoruz.
+İş planımızı değerlendirebilecek bir finans danışmanı arıyoruz.
+Yatırım sunumumuzdaki finansal tahminleri hazırlayabilecek bir uzman arıyoruz.
+Bütçemi düzenlememe yardımcı olabilecek kişisel finans danışmanı arıyorum.
+Şirketimizin nakit akışını analiz edebilecek bir danışman arıyoruz.
+Hibe başvurusu hazırlayabilecek deneyimli bir danışman arıyoruz.
+E-ticaret şirketimizin vergi süreçlerini yönetebilecek muhasebeci arıyoruz.
+Davamla ilgili görüşebileceğim deneyimli bir avukata ihtiyacım var.
+İş sözleşmemi kontrol edebilecek bir hukukçu arıyorum.
+Şirketimiz için gizlilik sözleşmesi hazırlayabilecek bir avukat arıyoruz.
+Marka tescil başvurusunu yürütebilecek bir danışman arıyorum.
+Tüketici uyuşmazlığında yardımcı olabilecek bir avukata ihtiyacım var.
+Kira anlaşmazlığım için hukuki destek arıyorum.
+Yurt dışı vize başvurumda yardımcı olabilecek bir danışman arıyorum.
+Vatandaşlık başvuru sürecini bilen bir hukuk danışmanı arıyorum.
+Şirketimizin KVKK uyumluluğunu değerlendirebilecek bir uzman arıyoruz.
+Miras işlemleri konusunda danışabileceğim bir avukat arıyorum.
+Doğum günü organizasyonunu planlayabilecek bir organizatör arıyorum.
+Düğünümüzün tüm sürecini yönetebilecek bir organizasyon firması arıyoruz.
+Şirket etkinliğimiz için mekan ve program ayarlayabilecek bir ekip arıyoruz.
+Çocuk partisi için eğlenceli aktiviteler hazırlayabilecek bir animatör arıyorum.
+Etkinliğimizde müzik çalabilecek bir DJ arıyoruz.
+Davetliler için yemek hazırlayabilecek bir catering firması arıyoruz.
+Nişan törenimiz için süsleme yapabilecek bir ekip arıyoruz.
+Açılış etkinliğimizde sunuculuk yapabilecek birini arıyoruz.
+Konferansımız için ses ve ışık sistemi kurabilecek firma arıyoruz.
+Etkinlik günü misafirleri karşılayabilecek görevlilere ihtiyacımız var.
+Özel günüm için profesyonel makyaj yapabilecek bir makyöz arıyorum.
+Düğün saçımı yapabilecek deneyimli bir kuaför arıyorum.
+Evde saç kesimi yapabilecek bir kuaföre ihtiyacım var.
+Cilt bakım rutinimi belirleyebilecek bir uzmana danışmak istiyorum.
+Fotoğraf çekimi öncesi styling yapabilecek birini arıyorum.
+Gardırobumu düzenlememe yardımcı olabilecek bir stil danışmanı arıyorum.
+Özel ölçü takım elbise dikebilecek bir terzi arıyorum.
+Elbisemin tadilatını kısa sürede yapabilecek bir terzi arıyorum.
+Ayakkabılarımı onarabilecek güvenilir bir ayakkabıcı arıyorum.
+Dövme tasarımımı hazırlayıp uygulayabilecek bir sanatçı arıyorum.
+Haftalık yemeklerimi hazırlayabilecek bir aşçı arıyorum.
+Özel davet için evde yemek yapabilecek profesyonel bir şef arıyorum.
+Doğum günü pastası hazırlayabilecek bir pastacı arıyorum.
+Vegan menü hazırlayabilecek bir catering firması arıyorum.
+Ofisimize her gün öğle yemeği getirebilecek bir firma arıyoruz.
+Kahve etkinliğimiz için deneyimli bir barista arıyoruz.
+Restoran menümüzü geliştirebilecek bir şef danışman arıyoruz.
+Glütensiz ürünler hazırlayabilecek bir pastane arıyorum.
+Kalabalık bir grup için mangal organizasyonu yapabilecek ekip arıyorum.
+Evdeki malzemelerle sağlıklı tarifler hazırlayabilecek bir aşçı arıyorum.
+Seyahat planımı ayrıntılı şekilde hazırlayabilecek bir danışman arıyorum.
+Uygun uçak bileti ve otel bulabilecek bir acente arıyorum.
+İstanbul'da özel tur düzenleyebilecek bir rehber arıyorum.
+Yurt dışı gezimde bana eşlik edebilecek Türkçe konuşan bir rehber arıyorum.
+Kamp rotası hazırlayabilecek deneyimli bir doğa rehberi arıyorum.
+Balayı için sakin bir rota önerebilecek seyahat danışmanı arıyorum.
+Kalabalık grubumuz için günübirlik gezi organize edebilecek firma arıyoruz.
+İş seyahatimizin tüm rezervasyonlarını yönetebilecek bir acente arıyoruz.
+Vize evraklarımı kontrol edebilecek bir danışman arıyorum.
+Karavan seyahati için rota ve kamp alanı önerilerine ihtiyacım var.
+Aracım çalışmıyor, bulunduğum yere gelebilecek bir tamirci arıyorum.
+Aracımın periyodik bakımını yapabilecek güvenilir bir servis arıyorum.
+Arabamdaki çizikleri giderebilecek bir kaporta ustası arıyorum.
+Aracımın içini detaylı temizleyebilecek bir oto yıkama arıyorum.
+Lastiklerimi evde değiştirebilecek mobil servis arıyorum.
+İkinci el araç almadan önce ekspertiz yapabilecek bir firma arıyorum.
+Motosikletimin bakımını yapabilecek deneyimli bir usta arıyorum.
+Bisikletimin frenlerini ayarlayabilecek bir tamirci arıyorum.
+Aracıma geri görüş kamerası takabilecek bir servis arıyorum.
+Klasik otomobilimi restore edebilecek bir ekip arıyorum.
+Yeni iş fikrimi değerlendirebilecek bir girişim danışmanı arıyorum.
+Şirketimizin süreçlerini iyileştirebilecek bir yönetim danışmanı arıyoruz.
+Ekibimiz için satış eğitimi verebilecek bir uzman arıyoruz.
+Müşteri hizmetleri ekibimizi eğitebilecek bir danışman arıyoruz.
+Yeni çalışanları bulmamıza yardımcı olabilecek işe alım uzmanı arıyoruz.
+Şirket kültürümüzü geliştirmek için insan kaynakları danışmanı arıyoruz.
+Projemizi planlayıp takip edebilecek bir proje yöneticisi arıyoruz.
+Operasyonel sorunlarımızı analiz edebilecek bir danışman arıyoruz.
+Yeni pazarlara açılma stratejisi hazırlayabilecek bir uzman arıyoruz.
+Satış sürecimizi otomatikleştirebilecek bir CRM danışmanı arıyoruz.
+Yoğun günlerde işlerimi planlamama yardımcı olacak kişisel asistan arıyorum.
+E-postalarımı düzenleyip randevularımı takip edebilecek sanal asistan arıyorum.
+Toplantı notlarını düzenli şekilde yazabilecek bir asistana ihtiyacımız var.
+Veri girişi yapabilecek dikkatli bir freelancer arıyorum.
+İnternetten ürün araştırması yapabilecek bir yardımcı arıyorum.
+Dosyalarımızı sınıflandırıp arşivleyebilecek birine ihtiyacımız var.
+Müşteri telefonlarını yanıtlayabilecek uzaktan çalışan bir asistan arıyoruz.
+Randevuları organize edebilecek yarı zamanlı sekreter arıyoruz.
+Faturaları kontrol edip sisteme girebilecek bir çalışan arıyoruz.
+Kısa süreli bir proje için operasyon desteği verebilecek birini arıyoruz.
+El yapımı ürünlerimi internetten satmama yardımcı olabilecek bir danışman arıyorum.
+Pazaryeri mağazamı kurabilecek bir e-ticaret uzmanı arıyorum.
+Ürünlerimi Amazon'a yükleyebilecek deneyimli bir uzman arıyorum.
+Kargo ve stok süreçlerimizi düzenleyebilecek bir danışman arıyoruz.
+E-ticaret mağazamızın dönüşüm oranını artırabilecek bir uzman arıyoruz.
+Müşteri yorumlarını analiz edip raporlayabilecek birini arıyoruz.
+Ürün kataloglarımızı düzenleyebilecek bir veri giriş uzmanı arıyoruz.
+Online mağazamız için müşteri destek personeli arıyoruz.
+İade süreçlerimizi yönetebilecek bir operasyon uzmanı arıyoruz.
+Ürün fiyatlarımızı rakiplerle karşılaştırabilecek bir analist arıyoruz.

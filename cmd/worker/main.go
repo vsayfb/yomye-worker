@@ -14,6 +14,7 @@ import (
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+
 	defer stop()
 
 	app, err := getApp(ctx)
@@ -23,7 +24,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	w, err := worker.New(ctx, app.cfg, app)
+	w, err := worker.New(ctx, app.cfg, app.cfg.AWS.CategorizationEventsQueue, app.handlers)
 
 	if err != nil {
 		slog.Error("failed to initialize worker", "err", err)
@@ -32,7 +33,26 @@ func main() {
 
 	healthMux := http.NewServeMux()
 
+	// Liveness: the process is up and able to serve HTTP. This should stay
+	// cheap and dependency-free so a slow/degraded dependency doesn't get
+	// the whole pod killed and restarted in a loop.
 	healthMux.HandleFunc("/health", func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+	})
+
+	// Readiness: dependencies (currently the database) are actually usable.
+	// An orchestrator should stop routing/considering this instance ready
+	// while this fails, without necessarily restarting it.
+	healthMux.HandleFunc("/ready", func(rw http.ResponseWriter, r *http.Request) {
+		readyCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+
+		if err := app.Ready(readyCtx); err != nil {
+			slog.Warn("readiness check failed", "err", err)
+			rw.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+
 		rw.WriteHeader(http.StatusOK)
 	})
 

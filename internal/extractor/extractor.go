@@ -28,16 +28,24 @@ type ExtractedSaleDetails struct {
 }
 
 type ExtractedCategoryNode struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	CanonicalName        string `json:"canonical_name"`
+	CanonicalSlug        string `json:"canonical_slug"`
+	CanonicalDescription string `json:"canonical_description"`
+	LocalizedName        string `json:"localized_name"`
+	LocalizedSlug        string `json:"localized_slug"`
+	LocalizedDescription string `json:"localized_description"`
+	Locale               string `json:"locale"`
+	IsSelectable         bool   `json:"is_selectable"`
 }
 
 type ExtractedListing struct {
 	BaseCategorySlug string                  `json:"base_category_slug"`
+	SourceLocale     string                  `json:"source_locale"`
 	CategoryPath     []ExtractedCategoryNode `json:"category_path"`
 	Gig              *ExtractedGigDetails    `json:"gig"`
 	Sale             *ExtractedSaleDetails   `json:"sale"`
 	ExpiresAt        *time.Time              `json:"expires_at"`
+	GeneratedBy      string                  `json:"-"`
 }
 
 type baseCategoryResult struct {
@@ -45,6 +53,7 @@ type baseCategoryResult struct {
 }
 
 type categoryPathResult struct {
+	SourceLocale string                  `json:"source_locale"`
 	CategoryPath []ExtractedCategoryNode `json:"category_path"`
 }
 
@@ -60,7 +69,7 @@ type saleResult struct {
 
 func decodeBaseCategory(raw string) (string, error) {
 	var result baseCategoryResult
-	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &result); err != nil {
+	if err := decodeJSONObject(raw, &result); err != nil {
 		return "", fmt.Errorf("decode base category: %w", err)
 	}
 	switch result.BaseCategorySlug {
@@ -71,12 +80,35 @@ func decodeBaseCategory(raw string) (string, error) {
 	}
 }
 
-func decodeCategoryPath(raw string) ([]ExtractedCategoryNode, error) {
+func decodeCategoryPath(raw string) (string, []ExtractedCategoryNode, error) {
 	var result categoryPathResult
-	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &result); err != nil {
-		return nil, fmt.Errorf("decode category path: %w", err)
+	if err := decodeJSONObject(raw, &result); err != nil {
+		return "", nil, fmt.Errorf("decode category path: %w", err)
 	}
-	return result.CategoryPath, nil
+	if strings.TrimSpace(result.SourceLocale) == "" {
+		return "", nil, fmt.Errorf("decode category path: missing source_locale")
+	}
+	if len(result.CategoryPath) == 0 {
+		return "", nil, fmt.Errorf("decode category path: empty category_path")
+	}
+	for index, node := range result.CategoryPath {
+		if strings.TrimSpace(node.CanonicalName) == "" ||
+			strings.TrimSpace(node.CanonicalSlug) == "" ||
+			strings.TrimSpace(node.CanonicalDescription) == "" ||
+			strings.TrimSpace(node.LocalizedName) == "" ||
+			strings.TrimSpace(node.LocalizedSlug) == "" ||
+			strings.TrimSpace(node.LocalizedDescription) == "" ||
+			strings.TrimSpace(node.Locale) == "" {
+			return "", nil, fmt.Errorf(
+				"decode category path: node %d is missing canonical or localized metadata",
+				index,
+			)
+		}
+	}
+	if !result.CategoryPath[len(result.CategoryPath)-1].IsSelectable {
+		return "", nil, fmt.Errorf("decode category path: final node is not selectable")
+	}
+	return result.SourceLocale, result.CategoryPath, nil
 }
 
 func decodeDetails(
@@ -92,14 +124,14 @@ func decodeDetails(
 	switch baseCategorySlug {
 	case "gig":
 		var result gigResult
-		if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &result); err != nil {
+		if err := decodeJSONObject(raw, &result); err != nil {
 			return nil, fmt.Errorf("decode gig details: %w", err)
 		}
 		listing.Gig = &result.ExtractedGigDetails
 		listing.ExpiresAt = result.ExpiresAt
 	case "for-sale":
 		var result saleResult
-		if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &result); err != nil {
+		if err := decodeJSONObject(raw, &result); err != nil {
 			return nil, fmt.Errorf("decode sale details: %w", err)
 		}
 		listing.Sale = &result.ExtractedSaleDetails
@@ -109,6 +141,23 @@ func decodeDetails(
 	}
 
 	return listing, nil
+}
+
+func decodeJSONObject(raw string, dst any) error {
+	raw = strings.TrimSpace(raw)
+	if err := json.Unmarshal([]byte(raw), dst); err == nil {
+		return nil
+	}
+
+	start := strings.IndexByte(raw, '{')
+	end := strings.LastIndexByte(raw, '}')
+	if start < 0 || end < start {
+		return fmt.Errorf("response does not contain a JSON object")
+	}
+	if err := json.Unmarshal([]byte(raw[start:end+1]), dst); err != nil {
+		return fmt.Errorf("decode JSON object: %w", err)
+	}
+	return nil
 }
 
 var (
@@ -121,6 +170,7 @@ type EmbeddingClient interface {
 }
 
 type Extractor interface {
+	Generator() string
 	Classify(ctx context.Context, description string) (string, error)
 	Extract(ctx context.Context, description, baseCategorySlug, catalog string) (*ExtractedListing, error)
 }

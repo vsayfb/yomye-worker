@@ -9,6 +9,19 @@ services:
     env_file:
       - .env
 
+  categorization-benchmark:
+    profiles:
+      - benchmark
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+    env_file:
+      - .env
+    environment:
+      RUN_AI_BENCHMARK: "1"
+
 networks:
   default:
     external: true

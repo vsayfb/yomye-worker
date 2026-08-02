@@ -18,6 +18,7 @@ const (
 
 	EnvOtelCollectorAddr = "OTEL_COLLECTOR_ADDR"
 	EnvMetricsServerPort = "METRICS_SERVER_PORT"
+	EnvWorkerConcurrency = "WORKER_CONCURRENCY"
 
 	EnvGroqAPIKey  = "GROQ_API_KEY"
 	EnvGroqModel   = "GROQ_MODEL"
@@ -33,6 +34,10 @@ const (
 	EnvNvidiaAPIKey  = "NVIDIA_API_KEY"
 	EnvNvidiaModel   = "NVIDIA_MODEL"
 	EnvNvidiaBaseURL = "NVIDIA_BASE_URL"
+
+	EnvMistralAPIKey  = "MISTRAL_API_KEY"
+	EnvMistralModel   = "MISTRAL_MODEL"
+	EnvMistralBaseURL = "MISTRAL_BASE_URL"
 
 	EnvHuggingFaceAIModel  = "HUGGINGFACE_AI_MODEL"
 	EnvLocalOllamaEndpoint = "LOCAL_OLLAMA_ENDPOINT"
@@ -51,6 +56,7 @@ const (
 
 	DefaultOtelCollectorAddr = "localhost:4317"
 	DefaultMetricsServerPort = ":9100"
+	DefaultWorkerConcurrency = 10
 
 	DefaultHuggingFaceAIModel  = "all-minilm:l12-v2"
 	DefaultLocalOllamaEndpoint = "http://localhost:11434"

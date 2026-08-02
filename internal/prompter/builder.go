@@ -14,9 +14,9 @@ func SalePrompt() string {
 	return salePrompt
 }
 
-func CategoryPathPrompt(baseCategorySlug, catalog string) string {
+func CategoryPathPrompt(_ string, catalog string) string {
 	if catalog == "" {
 		catalog = "(empty)"
 	}
-	return fmt.Sprintf(categoryPathPrompt, baseCategorySlug, catalog)
+	return fmt.Sprintf(categoryPathPrompt, catalog)
 }

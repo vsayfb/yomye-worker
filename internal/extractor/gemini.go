@@ -11,13 +11,19 @@ import (
 )
 
 type GeminiExtractor struct {
-	cfg *config.AIConfig
+	cfg         *config.AIConfig
+	generatedBy string
 }
 
 func NewGeminiExtractor(cfg *config.AIConfig) *GeminiExtractor {
 	return &GeminiExtractor{
-		cfg: cfg,
+		cfg:         cfg,
+		generatedBy: "gemini:" + cfg.Model,
 	}
+}
+
+func (g *GeminiExtractor) Generator() string {
+	return g.generatedBy
 }
 
 func (g *GeminiExtractor) client(ctx context.Context) (*genai.Client, error) {
@@ -66,7 +72,7 @@ func (g *GeminiExtractor) Extract(
 	if err != nil {
 		return nil, fmt.Errorf("extract category path: %w", err)
 	}
-	categoryPath, err := decodeCategoryPath(rawPath)
+	sourceLocale, categoryPath, err := decodeCategoryPath(rawPath)
 	if err != nil {
 		return nil, err
 	}
@@ -75,8 +81,14 @@ func (g *GeminiExtractor) Extract(
 	if err != nil {
 		return nil, fmt.Errorf("extract %s details: %w", baseCategorySlug, err)
 	}
+	listing, err := decodeDetails(baseCategorySlug, categoryPath, rawDetails)
+	if err != nil {
+		return nil, err
+	}
+	listing.GeneratedBy = g.generatedBy
+	listing.SourceLocale = sourceLocale
 
-	return decodeDetails(baseCategorySlug, categoryPath, rawDetails)
+	return listing, nil
 }
 
 func (g *GeminiExtractor) generate(
@@ -90,7 +102,10 @@ func (g *GeminiExtractor) generate(
 		ctx,
 		g.cfg.Model,
 		genai.Text(prompt),
-		nil,
+		&genai.GenerateContentConfig{
+			MaxOutputTokens:  1024,
+			ResponseMIMEType: "application/json",
+		},
 	)
 	if err != nil {
 		return "", fmt.Errorf("generate content: %w", err)

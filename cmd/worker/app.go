@@ -11,7 +11,7 @@ import (
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/extractor"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/notification"
-	"github.com/vsayfb/gig-platform-categorization-service/internal/worker"
+	"github.com/vsayfb/gig-platform-categorization-service/internal/processor"
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/database"
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/embeddings"
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/metrics"
@@ -21,10 +21,15 @@ import (
 	lg "github.com/vsayfb/gig-platform-categorization-service/pkg/logger"
 )
 
+const (
+	MessageTypeGigPublished        = "GigPublished"
+	MessageTypeProfessionPublished = "ProfessionPublished"
+)
+
 type App struct {
 	cfg *config.Config
 
-	workerService         *worker.Service
+	handlers              map[string]processor.Processor
 	notificationPublisher *notification.SQSPublisher
 
 	db *pgxpool.Pool
@@ -128,6 +133,16 @@ func getApp(ctx context.Context) (*App, error) {
 			return
 		}
 
+		// Each in-flight message can hold a connection (queries plus the
+		// RunInTx transaction), so the pool needs headroom for the worker's
+		// configured concurrency, or concurrent processing just serializes
+		// on pool acquisition instead of actually running in parallel.
+		poolCfg.MaxConns = int32(cfg.Server.WorkerConcurrency) + 2
+
+		if poolCfg.MaxConns < 2 {
+			poolCfg.MaxConns = 2
+		}
+
 		db, err := database.NewPool(ctx, poolCfg)
 
 		if err != nil {
@@ -139,27 +154,37 @@ func getApp(ctx context.Context) (*App, error) {
 
 		var extractors []extractor.Extractor
 
-		for _, provider := range []*config.AIConfig{
-			&cfg.AI.Nvidia,
-			&cfg.AI.Qwen,
-			&cfg.AI.Groq,
-		} {
-			if provider.APIKey != "" &&
-				provider.BaseURL != "" &&
-				provider.Model != "" {
-				extractors = append(
-					extractors,
-					extractor.NewOpenAIExtractor(provider),
-				)
-			}
-		}
-
 		if cfg.AI.Gemini.APIKey != "" &&
 			cfg.AI.Gemini.Model != "" {
 			extractors = append(
 				extractors,
 				extractor.NewGeminiExtractor(&cfg.AI.Gemini),
 			)
+		}
+
+		for _, provider := range []struct {
+			name string
+			cfg  *config.AIConfig
+		}{
+			{name: "groq", cfg: &cfg.AI.Groq},
+			{name: "open-router", cfg: &cfg.AI.OpenRouter},
+			{name: "mistral", cfg: &cfg.AI.Mistral},
+			{name: "nvidia", cfg: &cfg.AI.Nvidia},
+		} {
+			if provider.cfg.APIKey != "" &&
+				provider.cfg.BaseURL != "" &&
+				provider.cfg.Model != "" {
+				extractors = append(
+					extractors,
+					extractor.NewOpenAIExtractor(provider.cfg, provider.name),
+				)
+			}
+		}
+
+		if len(extractors) == 0 {
+			initErr = fmt.Errorf("no AI extraction provider is configured")
+			db.Close()
+			return
 		}
 
 		fallback := extractor.NewFallbackExtractor(extractors...)
@@ -176,9 +201,18 @@ func getApp(ctx context.Context) (*App, error) {
 
 		telemetryCtx, telemetryCancel := context.WithCancel(ctx)
 
+		processorRepo := processor.NewRepository(db)
+
+		gigProcessor := processor.NewGigProcessor(processorRepo, embeddingClient, fallback, *publisher, cfg)
+
+		professionProcessor := processor.NewProfessionProcessor(processorRepo, embeddingClient, fallback, cfg)
+
 		app = &App{
-			cfg:                   cfg,
-			workerService:         worker.NewService(worker.NewRepository(db), embeddingClient, fallback, cfg),
+			cfg: cfg,
+			handlers: map[string]processor.Processor{
+				MessageTypeGigPublished:        gigProcessor,
+				MessageTypeProfessionPublished: professionProcessor,
+			},
 			notificationPublisher: publisher,
 			db:                    db,
 			telemetryShutdown: func(context.Context) error {
@@ -196,6 +230,22 @@ func getApp(ctx context.Context) (*App, error) {
 	})
 
 	return app, initErr
+}
+
+// Ready reports whether the app's dependencies are usable. It's meant to
+// back a readiness probe so an orchestrator stops routing traffic to (or
+// restarts) an instance whose database connection has gone bad, rather than
+// relying solely on a liveness check that only proves the process is alive.
+func (a *App) Ready(ctx context.Context) error {
+	if a.db == nil {
+		return fmt.Errorf("database pool not initialized")
+	}
+
+	if err := a.db.Ping(ctx); err != nil {
+		return fmt.Errorf("database ping failed: %w", err)
+	}
+
+	return nil
 }
 
 func (a *App) Close(ctx context.Context) error {

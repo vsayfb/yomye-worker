@@ -2,8 +2,10 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -40,6 +42,7 @@ type AWSConfig struct {
 type ServerConfig struct {
 	MetricsServerPort string
 	OTelCollectorAddr string
+	WorkerConcurrency int
 }
 
 type AIConfig struct {
@@ -49,10 +52,11 @@ type AIConfig struct {
 }
 
 type AI struct {
-	Groq   AIConfig
-	Qwen   AIConfig
-	Gemini AIConfig
-	Nvidia AIConfig
+	Groq       AIConfig
+	OpenRouter AIConfig
+	Gemini     AIConfig
+	Nvidia     AIConfig
+	Mistral    AIConfig
 
 	HuggingFaceAIModel  string
 	PromptFile          string
@@ -70,14 +74,29 @@ func Load(ctx context.Context) (*Config, error) {
 	return loadEnv()
 }
 
-func required(key string) string {
+// requiredEnv accumulates missing-required-variable errors instead of
+// panicking, so a misconfigured deployment fails with a clean error log
+// (listing everything that's missing at once) instead of an unhandled panic.
+type requiredEnv struct {
+	errs []error
+}
+
+func (r *requiredEnv) get(key string) string {
 	value := os.Getenv(key)
 
 	if value == "" {
-		panic(fmt.Sprintf("missing required environment variable: %s", key))
+		r.errs = append(r.errs, fmt.Errorf("missing required environment variable: %s", key))
 	}
 
 	return value
+}
+
+func (r *requiredEnv) err() error {
+	if len(r.errs) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("invalid configuration: %w", errors.Join(r.errs...))
 }
 
 func getEnv(key string, defaultValue string) string {
@@ -88,6 +107,21 @@ func getEnv(key string, defaultValue string) string {
 	}
 
 	return value
+}
+
+func getIntEnv(key string, defaultValue int) int {
+	value := os.Getenv(key)
+
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return defaultValue
+	}
+
+	return parsed
 }
 
 func (c *DBConfig) DSN() string {

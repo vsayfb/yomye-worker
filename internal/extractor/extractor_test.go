@@ -18,8 +18,8 @@ func TestDecodeGigDetailsBuildsDiscriminatedListing(t *testing.T) {
 	t.Parallel()
 
 	path := []ExtractedCategoryNode{
-		{Name: "Bilişim ve Teknoloji", Description: "Dijital teknoloji hizmetleri"},
-		{Name: "Yazılımcı", Description: "Yazılım geliştirme hizmetleri"},
+		{CanonicalName: "Technology", CanonicalDescription: "Technology services"},
+		{CanonicalName: "Software Developer", CanonicalDescription: "Software development services"},
 	}
 	got, err := decodeDetails("gig", path, `{
 		"title": "Yazılımcı Aranıyor",
@@ -36,7 +36,7 @@ func TestDecodeGigDetailsBuildsDiscriminatedListing(t *testing.T) {
 		t.Fatalf("decodeDetails() returned invalid gig shape: %#v", got)
 	}
 	if len(got.CategoryPath) != 2 ||
-		got.CategoryPath[1].Name != "Yazılımcı" ||
+		got.CategoryPath[1].CanonicalName != "Software Developer" ||
 		got.Gig.Profession != "Yazılımcı" {
 		t.Fatalf("decodeDetails() = %#v", got)
 	}
@@ -46,8 +46,8 @@ func TestDecodeSaleDetailsBuildsDiscriminatedListing(t *testing.T) {
 	t.Parallel()
 
 	path := []ExtractedCategoryNode{
-		{Name: "Spor ve Outdoor", Description: "Spor ve açık hava ürünleri"},
-		{Name: "Bisiklet", Description: "Bisiklet ve ekipmanları"},
+		{CanonicalName: "Sports and Outdoors", CanonicalDescription: "Sports products"},
+		{CanonicalName: "Bicycle", CanonicalDescription: "Bicycles"},
 	}
 	got, err := decodeDetails("for-sale", path, `{
 		"title": "Az Kullanılmış Bisiklet",
@@ -66,7 +66,7 @@ func TestDecodeSaleDetailsBuildsDiscriminatedListing(t *testing.T) {
 		t.Fatalf("decodeDetails() returned invalid sale shape: %#v", got)
 	}
 	if len(got.CategoryPath) != 2 ||
-		got.CategoryPath[1].Name != "Bisiklet" ||
+		got.CategoryPath[1].CanonicalName != "Bicycle" ||
 		got.Sale.PricingType != "contact" {
 		t.Fatalf("decodeDetails() = %#v", got)
 	}
@@ -75,16 +75,72 @@ func TestDecodeSaleDetailsBuildsDiscriminatedListing(t *testing.T) {
 func TestDecodeCategoryPath(t *testing.T) {
 	t.Parallel()
 
-	got, err := decodeCategoryPath(`{
+	locale, got, err := decodeCategoryPath(`{
+		"source_locale":"tr",
 		"category_path": [
-			{"name":"Eğitim","description":"Eğitim hizmetleri"},
-			{"name":"Matematik Öğretmeni","description":"Matematik eğitimi"}
+			{"canonical_name":"Education","canonical_slug":"education","canonical_description":"Education services","localized_name":"Eğitim","localized_slug":"egitim","localized_description":"Eğitim hizmetleri","locale":"tr","is_selectable":false},
+			{"canonical_name":"Mathematics Teacher","canonical_slug":"mathematics-teacher","canonical_description":"Mathematics education","localized_name":"Matematik Öğretmeni","localized_slug":"matematik-ogretmeni","localized_description":"Matematik eğitimi","locale":"tr","is_selectable":true}
 		]
 	}`)
 	if err != nil {
 		t.Fatalf("decodeCategoryPath() error = %v", err)
 	}
-	if len(got) != 2 || got[1].Name != "Matematik Öğretmeni" {
+	if locale != "tr" || len(got) != 2 || got[1].CanonicalName != "Mathematics Teacher" {
 		t.Fatalf("decodeCategoryPath() = %#v", got)
+	}
+	if got[0].IsSelectable || !got[1].IsSelectable {
+		t.Fatalf("decodeCategoryPath() selectability = %#v", got)
+	}
+}
+
+func TestDecodeCategoryPathRejectsIncompleteLocalization(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := decodeCategoryPath(`{
+		"source_locale":"de",
+		"category_path":[{
+			"canonical_name":"Lawyer",
+			"canonical_slug":"lawyer",
+			"canonical_description":"Legal professional",
+			"localized_name":"Rechtsanwalt",
+			"localized_slug":"rechtsanwalt",
+			"locale":"de",
+			"is_selectable":true
+		}]
+	}`)
+	if err == nil {
+		t.Fatal("expected missing localized_description to be rejected")
+	}
+}
+
+func TestDecodeJSONObjectAcceptsWrappedJSON(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "markdown fence",
+			raw:  "```json\n{\"base_category_slug\":\"gig\"}\n```",
+		},
+		{
+			name: "leading explanation",
+			raw:  "Answer:\n{\"base_category_slug\":\"gig\"}",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := decodeBaseCategory(tt.raw)
+			if err != nil {
+				t.Fatalf("decodeBaseCategory() error = %v", err)
+			}
+			if got != "gig" {
+				t.Fatalf("decodeBaseCategory() = %q, want gig", got)
+			}
+		})
 	}
 }

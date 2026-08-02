@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -28,9 +27,9 @@ const (
 	ParameterGroqEndpoint = "groq-ai-endpoint"
 	ParameterGroqModel    = "groq-ai-model"
 
-	ParameterQwenAPIKey   = "qwen-api-key"
-	ParameterQwenEndpoint = "qwen-ai-endpoint"
-	ParameterQwenModel    = "qwen-ai-model"
+	ParameterOpenRouterAPIKey   = "openrouter-api-key"
+	ParameterOpenRouterEndpoint = "openrouter-ai-endpoint"
+	ParameterOpenRouterModel    = "openrouter-ai-model"
 
 	ParameterGeminiAPIKey = "gemini-api-key"
 	ParameterGeminiModel  = "gemini-ai-model"
@@ -38,6 +37,10 @@ const (
 	ParameterNvidiaAPIKey   = "nvidia-api-key"
 	ParameterNvidiaEndpoint = "nvidia-ai-endpoint"
 	ParameterNvidiaModel    = "nvidia-ai-model"
+
+	ParameterMistralAPIKey  = "mistral-api-key"
+	ParameterMistralModel   = "mistral-ai-model"
+	ParameterMistralBaseURL = "mistral-ai-endpoint"
 )
 
 type rdsSecret struct {
@@ -69,10 +72,6 @@ func loadAWS(ctx context.Context) (*Config, error) {
 
 	params, err := loadParameters(ctx, ssmClient)
 
-	for k, v := range params {
-		slog.Info("parameter", "key", k, "value", v)
-	}
-
 	if err != nil {
 		return nil, err
 	}
@@ -101,6 +100,7 @@ func loadAWS(ctx context.Context) (*Config, error) {
 		Server: ServerConfig{
 			MetricsServerPort: getEnv(EnvMetricsServerPort, DefaultMetricsServerPort),
 			OTelCollectorAddr: getEnv(EnvOtelCollectorAddr, DefaultOtelCollectorAddr),
+			WorkerConcurrency: getIntEnv(EnvWorkerConcurrency, DefaultWorkerConcurrency),
 		},
 
 		AWS: AWSConfig{
@@ -119,10 +119,10 @@ func loadAWS(ctx context.Context) (*Config, error) {
 				BaseURL: params[ParameterGroqEndpoint],
 				Model:   params[ParameterGroqModel],
 			},
-			Qwen: AIConfig{
-				APIKey:  params[ParameterQwenAPIKey],
-				BaseURL: params[ParameterQwenEndpoint],
-				Model:   params[ParameterQwenModel],
+			OpenRouter: AIConfig{
+				APIKey:  params[ParameterOpenRouterAPIKey],
+				BaseURL: params[ParameterOpenRouterEndpoint],
+				Model:   params[ParameterOpenRouterModel],
 			},
 			Gemini: AIConfig{
 				APIKey: params[ParameterGeminiAPIKey],
@@ -152,14 +152,14 @@ func loadParameters(ctx context.Context, client *ssm.Client) (map[string]string,
 		ssmParameter(ParameterGroqAPIKey),
 		ssmParameter(ParameterGroqEndpoint),
 		ssmParameter(ParameterGroqModel),
-		ssmParameter(ParameterQwenAPIKey),
-		ssmParameter(ParameterQwenEndpoint),
-		ssmParameter(ParameterQwenModel),
+		ssmParameter(ParameterOpenRouterAPIKey),
+		ssmParameter(ParameterOpenRouterEndpoint),
+		ssmParameter(ParameterOpenRouterModel),
 		ssmParameter(ParameterGeminiAPIKey),
 		ssmParameter(ParameterGeminiModel),
-		ssmParameter(ParameterNvidiaAPIKey),
-		ssmParameter(ParameterNvidiaEndpoint),
-		ssmParameter(ParameterNvidiaModel),
+		ssmParameter(ParameterMistralAPIKey),
+		ssmParameter(ParameterMistralModel),
+		ssmParameter(ParameterMistralBaseURL),
 	}
 
 	params := make(map[string]string, len(names))

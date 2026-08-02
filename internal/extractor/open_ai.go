@@ -8,25 +8,32 @@ import (
 
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/shared"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/prompter"
 )
 
 type OpenAIExtractor struct {
-	client openai.Client
-	model  string
+	client      openai.Client
+	model       string
+	generatedBy string
 }
 
-func NewOpenAIExtractor(cfg *config.AIConfig) *OpenAIExtractor {
+func NewOpenAIExtractor(cfg *config.AIConfig, provider string) *OpenAIExtractor {
 	client := openai.NewClient(
 		option.WithAPIKey(cfg.APIKey),
 		option.WithBaseURL(cfg.BaseURL),
 	)
 
 	return &OpenAIExtractor{
-		client: client,
-		model:  cfg.Model,
+		client:      client,
+		model:       cfg.Model,
+		generatedBy: provider + ":" + cfg.Model,
 	}
+}
+
+func (o *OpenAIExtractor) Generator() string {
+	return o.generatedBy
 }
 
 func (o *OpenAIExtractor) Classify(ctx context.Context, description string) (string, error) {
@@ -55,7 +62,7 @@ func (o *OpenAIExtractor) Extract(
 	if err != nil {
 		return nil, fmt.Errorf("extract category path: %w", err)
 	}
-	categoryPath, err := decodeCategoryPath(rawPath)
+	sourceLocale, categoryPath, err := decodeCategoryPath(rawPath)
 	if err != nil {
 		return nil, err
 	}
@@ -64,8 +71,14 @@ func (o *OpenAIExtractor) Extract(
 	if err != nil {
 		return nil, fmt.Errorf("extract %s details: %w", baseCategorySlug, err)
 	}
+	listing, err := decodeDetails(baseCategorySlug, categoryPath, rawDetails)
+	if err != nil {
+		return nil, err
+	}
+	listing.GeneratedBy = o.generatedBy
+	listing.SourceLocale = sourceLocale
 
-	return decodeDetails(baseCategorySlug, categoryPath, rawDetails)
+	return listing, nil
 }
 
 func (o *OpenAIExtractor) complete(
@@ -73,11 +86,17 @@ func (o *OpenAIExtractor) complete(
 	systemPrompt string,
 	description string,
 ) (string, error) {
+	jsonObjectFormat := shared.NewResponseFormatJSONObjectParam()
+
 	resp, err := o.client.Chat.Completions.New(
 		ctx,
 		openai.ChatCompletionNewParams{
 			Model:       o.model,
+			MaxTokens:   openai.Int(1024),
 			Temperature: openai.Float(0),
+			ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
+				OfJSONObject: &jsonObjectFormat,
+			},
 			Messages: []openai.ChatCompletionMessageParamUnion{
 				openai.SystemMessage(systemPrompt),
 				openai.UserMessage(description),
