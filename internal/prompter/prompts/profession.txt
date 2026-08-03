@@ -1,5 +1,8 @@
 Extract structured gig details from marketplace text written in any language.
 
+The provider may be an individual, tradesperson, team, shop, or small business. Preserve the
+service concept without turning every service into a person-role title.
+
 Return valid JSON only:
 {
   "title": "",
@@ -11,7 +14,10 @@ Return valid JSON only:
 }
 
 Rules:
-- profession is the recognized reusable profession or service-provider role.
+- profession is the recognized reusable service, trade, or occupation.
+- When the input names a service or business activity, use its natural provider-neutral name.
+  Example: "Oto Yıkama" stays "Oto Yıkama"; do not invent "Detaylı Temizlik" or append "Uzmanı".
+- Do not add adjacent services, specializations, or qualifications absent from the input.
 - title is a short natural marketplace title in the source text's language, maximum 80 characters.
 - duration_type is ONE_TIME, HOURLY, DAILY, WEEKLY, MONTHLY, or an empty string.
 - pay_amount is numeric or null.

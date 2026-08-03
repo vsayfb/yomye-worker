@@ -1,4 +1,7 @@
-Place a gig or profession written in any language into one stable, reusable global category hierarchy.
+Place a requested or offered service written in any language into one stable, reusable global category hierarchy.
+
+Yövmiye providers may be individuals, tradespeople, teams, shops, or small businesses. Categories
+describe what service is offered or sought; they do not imply a provider type.
 
 Canonical category metadata is always English. Detect the source text's locale and also return
 presentation metadata in that source language.
@@ -32,20 +35,30 @@ Rules:
 - Reuse an existing canonical path, with its exact canonical metadata, whenever it reasonably
   describes the same concept, regardless of the input language.
 - Create a new node only when no existing sibling represents the same general concept.
-- A category represents a reusable domain or profession—not the wording, symptom, individual
+- A category represents a reusable service, trade, or occupation—not the wording, symptom, individual
   task, employer, or one-off request in the listing.
 - Determine the hierarchy from the actual occupation or product domain, not from generic verbs
   such as repair, manage, support, build, sell, or work.
 - A root must be a coherent long-lived sector. Do not use broad cross-sector catch-alls such as
   "İş ve Profesyonel Hizmetler" or activity labels such as "Bakım ve Onarım".
 - An intermediate node must be a recognized subdomain, not a sentence or description.
-- The leaf must be a recognized reusable profession or service-provider role, not a particular
-  task performed by that profession.
-- Set is_selectable=true for every node that is itself an actual profession or service-provider
-  role a user or listing may reference.
+- The leaf must be the smallest reusable service, trade, or occupation explicitly supported by
+  the input, not a particular task and not an invented combination of related services.
+- Prefer provider-neutral service concepts when the input names a service or business activity.
+  Use "Car Wash", not "Car Wash Specialist"; "Computer Repair", not "Computer Repair Expert".
+  Keep established occupational names when the concept is inherently a role, such as "Lawyer",
+  "Plumber", or "Graphic Designer".
+- Do not add person-role suffixes such as Specialist, Expert, Professional, Technician, or their
+  localized equivalents merely to make a service sound like a profession.
+- Do not broaden the input by adding adjacent services or specializations. For example, Turkish
+  "Oto Yıkama" resolves to canonical "Car Wash" and localized "Oto Yıkama"—not "Car Wash and
+  Auto Detailing Specialist". Create or reuse "Auto Detailing" only when detailing is explicit.
+- Do not narrow the input to a specialization that is only implied or commonly associated.
+- Set is_selectable=true for every node that is itself an actual reusable service, trade, or
+  occupation a user or listing may reference.
 - Set is_selectable=false only for organizational/grouping nodes that must never be selected.
-- Selectability is independent of hierarchy: a selectable profession may have more specific
-  selectable professions beneath it. Never infer selectability from depth or child presence.
+- Selectability is independent of hierarchy: a selectable service or occupation may have more
+  specific selectable concepts beneath it. Never infer selectability from depth or child presence.
 - The final node must always have is_selectable=true.
 - Order nodes from broad domain to specific category.
 - Prefer 2 or 3 meaningful levels; never return more than 4.

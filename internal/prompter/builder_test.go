@@ -27,3 +27,36 @@ func TestCategoryPathPromptUsesCanonicalEnglishAndLocalizedMetadata(t *testing.T
 		t.Fatalf("prompt contains a formatting error: %s", prompt)
 	}
 }
+
+func TestCategoryPathPromptKeepsServiceCategoriesProviderNeutral(t *testing.T) {
+	prompt := CategoryPathPrompt("gig", "")
+
+	for _, required := range []string{
+		"individuals, tradespeople, teams, shops, or small businesses",
+		`Use "Car Wash", not "Car Wash Specialist"`,
+		`"Oto Yıkama" resolves to canonical "Car Wash"`,
+		`not "Car Wash and`,
+		"only when detailing is explicit",
+		"Do not add person-role suffixes",
+		"Do not broaden the input",
+	} {
+		if !strings.Contains(prompt, required) {
+			t.Fatalf("provider-neutral prompt is missing %q", required)
+		}
+	}
+}
+
+func TestGigPromptDoesNotInventProviderRolesOrAdjacentServices(t *testing.T) {
+	prompt := GigPrompt()
+
+	for _, required := range []string{
+		"provider-neutral name",
+		`"Oto Yıkama" stays "Oto Yıkama"`,
+		`do not invent "Detaylı Temizlik"`,
+		"Do not add adjacent services",
+	} {
+		if !strings.Contains(prompt, required) {
+			t.Fatalf("gig prompt is missing %q", required)
+		}
+	}
+}
