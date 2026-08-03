@@ -39,10 +39,11 @@ type NewGigRejectedNotificationEvent struct {
 }
 
 type GigCategoryMatchedEvent struct {
-	GigID      uuid.UUID `json:"gig_id"`
-	CategoryID uuid.UUID `json:"category_id"`
-	CityID     int16     `json:"city_id"`
-	OccurredAt time.Time `json:"occurred_at"`
+	GigID      uuid.UUID  `json:"gig_id"`
+	CategoryID uuid.UUID  `json:"category_id"`
+	CountryID  *uuid.UUID `json:"country_id,omitempty"`
+	PlaceID    *uuid.UUID `json:"place_id,omitempty"`
+	OccurredAt time.Time  `json:"occurred_at"`
 }
 
 type GigCategoryMatchedEventEnvelope struct {

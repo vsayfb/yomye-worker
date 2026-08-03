@@ -601,7 +601,6 @@ func (r *repository) OpenListing(ctx context.Context, listingID uuid.UUID) error
 		        AND bc.slug = 'gig'
 		        AND bc.is_active = TRUE
 		  )
-		  AND base_category_id = base_category_id_for_slug('gig')
 		  AND EXISTS (SELECT 1 FROM gig_details gd WHERE gd.gig_id = listings.id)
 	`, listingID)
 	if err != nil {

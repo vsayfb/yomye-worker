@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	MessageTypeListingCreated      = "ListingCreated"
 	MessageTypeGigPublished        = "GigPublished"
 	MessageTypeProfessionPublished = "ProfessionPublished"
 )
@@ -210,6 +211,7 @@ func getApp(ctx context.Context) (*App, error) {
 		app = &App{
 			cfg: cfg,
 			handlers: map[string]processor.Processor{
+				MessageTypeListingCreated:      gigProcessor,
 				MessageTypeGigPublished:        gigProcessor,
 				MessageTypeProfessionPublished: professionProcessor,
 			},

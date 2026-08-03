@@ -30,7 +30,6 @@ func TestGigProcessor_E2E_ClassifiesAndOpensListing(t *testing.T) {
 	msg := ListingCreatedMessage{
 		ListingID:   listingID,
 		Description: description,
-		CityID:      1,
 		AuthorID:    uuid.New(),
 	}
 	body, err := json.Marshal(msg)

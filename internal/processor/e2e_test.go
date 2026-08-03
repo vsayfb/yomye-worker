@@ -16,7 +16,6 @@ package processor
 //     hierarchy, embedding, generated_by, and is_selectable
 //   - category_localizations(category_id, locale, name, slug, description,
 //     generated_by), unique(category_id, locale)
-//   - a SQL function base_category_id_for_slug(text) returns uuid
 //   - listings(id, status, base_category_id, description_clean, ...)
 //   - listing_categories(listing_id, category_id, base_category_id), unique(listing_id, category_id)
 //   - gig_details(gig_id unique, title, duration_type, pay_amount, pay_currency, expires_at)
@@ -156,9 +155,9 @@ func (e *e2eEnv) seedListing(t *testing.T, ctx context.Context, description stri
 	id := uuid.New()
 
 	_, err := e.db.Exec(ctx, `
-		INSERT INTO listings (id, author_id, city_id, description, status)
-		VALUES ($1, $2, $3, $4, 'PROCESSING')
-	`, id, uuid.New(), int16(1), description)
+		INSERT INTO listings (id, author_id, description, status)
+		VALUES ($1, $2, $3, 'PROCESSING')
+	`, id, uuid.New(), description)
 	if err != nil {
 		t.Fatalf("seed listing: %v", err)
 	}

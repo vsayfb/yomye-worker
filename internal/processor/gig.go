@@ -86,10 +86,11 @@ func NewGigProcessor(
 }
 
 type ListingCreatedMessage struct {
-	ListingID   uuid.UUID `json:"listing_id"`
-	Description string    `json:"description"`
-	CityID      int16     `json:"city_id"`
-	AuthorID    uuid.UUID `json:"author_id"`
+	ListingID   uuid.UUID  `json:"listing_id"`
+	Description string     `json:"description"`
+	AuthorID    uuid.UUID  `json:"author_id"`
+	CountryID   *uuid.UUID `json:"country_id,omitempty"`
+	PlaceID     *uuid.UUID `json:"place_id,omitempty"`
 }
 
 func (s *GigProcessor) Process(ctx context.Context, record Message) (err error) {
@@ -156,6 +157,9 @@ func validateListingCreatedMessage(msg ListingCreatedMessage) error {
 	}
 	if strings.TrimSpace(msg.Description) == "" {
 		return errors.New("invalid listing-created message: empty description")
+	}
+	if msg.PlaceID != nil && msg.CountryID == nil {
+		return errors.New("invalid listing-created message: place_id requires country_id")
 	}
 	return nil
 }
@@ -560,7 +564,8 @@ func (s *GigProcessor) publishGigCategoryMatched(
 		Payload: notification.GigCategoryMatchedEvent{
 			GigID:      msg.ListingID,
 			CategoryID: category.ID,
-			CityID:     msg.CityID,
+			CountryID:  msg.CountryID,
+			PlaceID:    msg.PlaceID,
 		},
 	}
 
