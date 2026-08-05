@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 )
 
-const SSMParameterPath = "/yevmiye/app/"
+const SSMParameterPath = "/yevmiye/staging/"
 
 const (
 	ParameterDBHost       = "db-host"
@@ -27,9 +27,9 @@ const (
 	ParameterGroqEndpoint = "groq-ai-endpoint"
 	ParameterGroqModel    = "groq-ai-model"
 
-	ParameterOpenRouterAPIKey   = "openrouter-api-key"
-	ParameterOpenRouterEndpoint = "openrouter-ai-endpoint"
-	ParameterOpenRouterModel    = "openrouter-ai-model"
+	ParameterOpenRouterAPIKey   = "open_router-api-key"
+	ParameterOpenRouterEndpoint = "open_router-ai-endpoint"
+	ParameterOpenRouterModel    = "open_router-ai-model"
 
 	ParameterGeminiAPIKey = "gemini-api-key"
 	ParameterGeminiModel  = "gemini-ai-model"
