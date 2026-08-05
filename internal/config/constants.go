@@ -2,6 +2,7 @@ package config
 
 const (
 	EnvironmentDevelopment = "development"
+	EnvironmentStaging     = "staging"
 	EnvironmentProduction  = "production"
 )
 

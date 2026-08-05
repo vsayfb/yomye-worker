@@ -67,8 +67,12 @@ func Load(ctx context.Context) (*Config, error) {
 
 	env := os.Getenv(EnvApp)
 
-	if env == EnvironmentProduction {
+	if env == EnvironmentStaging {
 		return loadAWS(ctx)
+	}
+
+	if env == EnvironmentProduction {
+		return loadGCP(ctx)
 	}
 
 	return loadEnv()

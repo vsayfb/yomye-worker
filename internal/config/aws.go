@@ -85,7 +85,7 @@ func loadAWS(ctx context.Context) (*Config, error) {
 	return &Config{
 		App: APP{
 			ServiceName: getEnv(EnvServiceName, DefaultServiceName),
-			Env:         EnvironmentProduction,
+			Env:         EnvironmentStaging,
 		},
 
 		DB: DBConfig{
