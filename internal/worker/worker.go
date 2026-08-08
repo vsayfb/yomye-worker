@@ -31,6 +31,7 @@ var tracer = otel.Tracer("worker")
 // cut off mid-transaction, but a stuck AI/DB call still can't hang forever.
 const (
 	messageProcessingTimeout = 2 * time.Minute
+	messageVisibilityTimeout = 3 * time.Minute
 	minimumReceiveBackoff    = time.Second
 	maximumReceiveBackoff    = 30 * time.Second
 )
@@ -103,7 +104,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			QueueUrl:              aws.String(w.queueURL),
 			MaxNumberOfMessages:   10,
 			WaitTimeSeconds:       20,
-			VisibilityTimeout:     60,
+			VisibilityTimeout:     int32(messageVisibilityTimeout / time.Second),
 			MessageAttributeNames: []string{"All"},
 		})
 
@@ -223,6 +224,26 @@ func (w *Worker) handleMessage(ctx context.Context, m types.Message) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 
+		if processor.IsPermanent(err) {
+			if deleteErr := w.deleteMessage(msgCtx, m); deleteErr != nil {
+				slog.ErrorContext(msgCtx,
+					"failed to discard permanently invalid message",
+					"message_id", aws.ToString(m.MessageId),
+					"message_type", msgType,
+					"err", deleteErr,
+				)
+				return
+			}
+
+			slog.WarnContext(msgCtx,
+				"discarded permanently invalid message",
+				"message_id", aws.ToString(m.MessageId),
+				"message_type", msgType,
+				"err", err,
+			)
+			return
+		}
+
 		slog.ErrorContext(msgCtx,
 			"message processing failed",
 			"message_id", aws.ToString(m.MessageId),
@@ -259,13 +280,13 @@ func (w *Worker) processMessage(ctx context.Context, m types.Message) (err error
 	}
 
 	if msg.Type == "" {
-		return errors.New("missing message type")
+		return processor.Permanent(errors.New("missing message type"))
 	}
 
 	handler, ok := w.handlers[msg.Type]
 
 	if !ok {
-		return fmt.Errorf("no handler registered for message type %q", msg.Type)
+		return processor.Permanent(fmt.Errorf("no handler registered for message type %q", msg.Type))
 	}
 
 	if err = handler.Process(ctx, msg); err != nil {
@@ -285,12 +306,7 @@ func (w *Worker) processMessage(ctx context.Context, m types.Message) (err error
 		"message_type", msg.Type,
 	)
 
-	_, err = w.client.DeleteMessage(ctx, &sqs.DeleteMessageInput{
-		QueueUrl:      aws.String(w.queueURL),
-		ReceiptHandle: m.ReceiptHandle,
-	})
-
-	if err != nil {
+	if err = w.deleteMessage(ctx, m); err != nil {
 		slog.WarnContext(ctx,
 			"failed to delete message",
 			"message_id", msg.ID,
@@ -301,4 +317,12 @@ func (w *Worker) processMessage(ctx context.Context, m types.Message) (err error
 	}
 
 	return nil
+}
+
+func (w *Worker) deleteMessage(ctx context.Context, m types.Message) error {
+	_, err := w.client.DeleteMessage(ctx, &sqs.DeleteMessageInput{
+		QueueUrl:      aws.String(w.queueURL),
+		ReceiptHandle: m.ReceiptHandle,
+	})
+	return err
 }

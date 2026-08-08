@@ -141,6 +141,9 @@ func TestProcessMessage_MissingType(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error for a message with no type")
 	}
+	if !processor.IsPermanent(err) {
+		t.Fatalf("missing message type error should be permanent, got %v", err)
+	}
 }
 
 func TestProcessMessage_UnknownType(t *testing.T) {
@@ -149,6 +152,47 @@ func TestProcessMessage_UnknownType(t *testing.T) {
 	err := w.processMessage(context.Background(), newTestMessage("1", "SomethingUnregistered"))
 	if err == nil {
 		t.Fatal("expected an error for an unregistered message type")
+	}
+	if !processor.IsPermanent(err) {
+		t.Fatalf("unknown message type error should be permanent, got %v", err)
+	}
+}
+
+func TestHandleMessage_PermanentErrorDeletesMessage(t *testing.T) {
+	client := &fakeSQSClient{}
+	w := &Worker{
+		client:   client,
+		queueURL: "test-queue",
+		handlers: map[string]processor.Processor{
+			"invalid": processorFunc(func(context.Context, processor.Message) error {
+				return processor.Permanent(errors.New("invalid payload"))
+			}),
+		},
+	}
+
+	w.handleMessage(context.Background(), newTestMessage("1", "invalid"))
+
+	if got := client.deletedCount(); got != 1 {
+		t.Fatalf("expected permanently invalid message to be deleted once, got %d deletes", got)
+	}
+}
+
+func TestHandleMessage_TransientErrorLeavesMessageForRetry(t *testing.T) {
+	client := &fakeSQSClient{}
+	w := &Worker{
+		client:   client,
+		queueURL: "test-queue",
+		handlers: map[string]processor.Processor{
+			"retry": processorFunc(func(context.Context, processor.Message) error {
+				return errors.New("dependency unavailable")
+			}),
+		},
+	}
+
+	w.handleMessage(context.Background(), newTestMessage("1", "retry"))
+
+	if got := client.deletedCount(); got != 0 {
+		t.Fatalf("expected transient failure to remain on queue, got %d deletes", got)
 	}
 }
 
@@ -212,6 +256,19 @@ func TestReceiveBackoffIsExponentialAndCapped(t *testing.T) {
 		if got := receiveBackoff(tt.failures); got != tt.want {
 			t.Errorf("receiveBackoff(%d) = %s, want %s", tt.failures, got, tt.want)
 		}
+	}
+}
+
+func TestMessageVisibilityExceedsProcessingTimeout(t *testing.T) {
+	if messageVisibilityTimeout <= messageProcessingTimeout {
+		t.Fatalf(
+			"message visibility timeout %s must exceed processing timeout %s",
+			messageVisibilityTimeout,
+			messageProcessingTimeout,
+		)
+	}
+	if messageVisibilityTimeout != 3*time.Minute {
+		t.Fatalf("message visibility timeout = %s, want 3m", messageVisibilityTimeout)
 	}
 }
 

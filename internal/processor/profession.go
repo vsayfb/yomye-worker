@@ -68,18 +68,18 @@ func (s *ProfessionProcessor) Process(ctx context.Context, record Message) (err 
 
 	var msg NewProfession
 	if err := json.Unmarshal([]byte(record.Body), &msg); err != nil {
-		return fmt.Errorf("decode new-profession message: %w", err)
+		return Permanent(fmt.Errorf("decode new-profession message: %w", err))
 	}
 
 	msg.Description = strings.TrimSpace(msg.Description)
 	if msg.RequestID == uuid.Nil {
-		return errors.New("invalid new-profession message: missing request_id")
+		return Permanent(errors.New("invalid new-profession message: missing request_id"))
 	}
 	if msg.AuthorID == uuid.Nil {
-		return errors.New("invalid new-profession message: missing author_id")
+		return Permanent(errors.New("invalid new-profession message: missing author_id"))
 	}
 	if msg.Description == "" {
-		return errors.New("invalid new-profession message: empty description")
+		return Permanent(errors.New("invalid new-profession message: empty description"))
 	}
 
 	span.SetAttributes(

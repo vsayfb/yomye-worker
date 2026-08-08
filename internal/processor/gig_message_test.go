@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -46,5 +47,18 @@ func TestDecodeListingCreatedMessageRejectsPlaceWithoutCountry(t *testing.T) {
 	_, err := decodeListingCreatedMessage(body)
 	if err == nil || !strings.Contains(err.Error(), "place_id requires country_id") {
 		t.Fatalf("decodeListingCreatedMessage() error = %v, want place/country validation error", err)
+	}
+}
+
+func TestGigProcessorMarksInvalidMessagePermanent(t *testing.T) {
+	processor := &GigProcessor{}
+	err := processor.Process(context.Background(), Message{
+		ID:   "message-1",
+		Type: "ListingCreated",
+		Body: `{not-json}`,
+	})
+
+	if !IsPermanent(err) {
+		t.Fatalf("invalid listing message should be permanent, got %v", err)
 	}
 }

@@ -101,7 +101,7 @@ func (s *GigProcessor) Process(ctx context.Context, record Message) (err error) 
 
 	msg, err := decodeListingCreatedMessage(record.Body)
 	if err != nil {
-		return err
+		return Permanent(err)
 	}
 
 	span.SetAttributes(attribute.String("listing.id", msg.ListingID.String()))
