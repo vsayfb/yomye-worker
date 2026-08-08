@@ -112,8 +112,23 @@ func TestGigProcessor_AlreadyOpenReplayRepublishesNotifications(t *testing.T) {
 	if publisher.listingApproved.Payload.Title != "stored title" {
 		t.Fatalf("listing-approved title = %q, want stored title", publisher.listingApproved.Payload.Title)
 	}
+	if publisher.listingApproved.EventID == uuid.Nil {
+		t.Fatal("listing-approved event ID must be populated")
+	}
+	if publisher.listingApproved.Version != notification.CurrentEventVersion {
+		t.Fatalf("listing-approved version = %d, want %d", publisher.listingApproved.Version, notification.CurrentEventVersion)
+	}
 	if publisher.categoryMatched.Payload.CategoryID != categoryID {
 		t.Fatalf("category ID = %s, want %s", publisher.categoryMatched.Payload.CategoryID, categoryID)
+	}
+	if publisher.categoryMatched.EventID == uuid.Nil {
+		t.Fatal("category-matched event ID must be populated")
+	}
+	if publisher.categoryMatched.Version != notification.CurrentEventVersion {
+		t.Fatalf("category-matched version = %d, want %d", publisher.categoryMatched.Version, notification.CurrentEventVersion)
+	}
+	if publisher.categoryMatched.Payload.OccurredAt.IsZero() {
+		t.Fatal("category-matched occurred_at must be populated")
 	}
 }
 

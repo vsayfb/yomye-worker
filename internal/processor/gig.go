@@ -537,14 +537,17 @@ func (s *GigProcessor) publishListingApproved(
 	msg ListingCreatedMessage,
 	result *ProcessResult,
 ) error {
+	occurredAt := time.Now().UTC()
 	event := notification.ListingApprovedEnvelope{
-		Type: notification.EventListingApproved,
+		Type:    notification.EventListingApproved,
+		EventID: notification.StableEventID(notification.EventListingApproved, msg.ListingID),
+		Version: notification.CurrentEventVersion,
 		Payload: notification.ListingApprovedEvent{
 			RecipientID:      msg.AuthorID,
 			ListingID:        msg.ListingID,
 			BaseCategorySlug: result.BaseCategorySlug,
 			Title:            result.Title,
-			OccurredAt:       time.Now().UTC(),
+			OccurredAt:       occurredAt,
 		},
 	}
 
@@ -564,12 +567,15 @@ func (s *GigProcessor) publishGigCategoryMatched(
 	}
 
 	event := notification.GigCategoryMatchedEventEnvelope{
-		Type: notification.EventGigCategoryMatched,
+		Type:    notification.EventGigCategoryMatched,
+		EventID: notification.StableEventID(notification.EventGigCategoryMatched, msg.ListingID, category.ID),
+		Version: notification.CurrentEventVersion,
 		Payload: notification.GigCategoryMatchedEvent{
 			GigID:      msg.ListingID,
 			CategoryID: category.ID,
 			CountryID:  msg.CountryID,
 			PlaceID:    msg.PlaceID,
+			OccurredAt: time.Now().UTC(),
 		},
 	}
 

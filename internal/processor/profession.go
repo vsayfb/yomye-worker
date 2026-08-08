@@ -117,7 +117,7 @@ func (s *ProfessionProcessor) Process(ctx context.Context, record Message) (err 
 		return fmt.Errorf("list active gig categories: %w", err)
 	}
 
-	extracted, err := s.fallback.Extract(
+	extracted, err := s.fallback.ExtractCategoryPath(
 		ctx,
 		msg.Description,
 		BaseCategoryGig,

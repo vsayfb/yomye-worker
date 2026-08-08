@@ -260,6 +260,9 @@ func TestReceiveBackoffIsExponentialAndCapped(t *testing.T) {
 }
 
 func TestMessageVisibilityExceedsProcessingTimeout(t *testing.T) {
+	if messageProcessingTimeout != 2*time.Minute {
+		t.Fatalf("message processing timeout = %s, want 2m", messageProcessingTimeout)
+	}
 	if messageVisibilityTimeout <= messageProcessingTimeout {
 		t.Fatalf(
 			"message visibility timeout %s must exceed processing timeout %s",

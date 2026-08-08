@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +16,8 @@ type Publisher interface {
 type NotificationEventType string
 
 const (
+	CurrentEventVersion = 1
+
 	EventListingApproved    NotificationEventType = "listing_approved"
 	EventGigRejected        NotificationEventType = "gig_rejected"
 	EventGigCategoryMatched NotificationEventType = "gig_category_matched"
@@ -22,6 +25,8 @@ const (
 
 type ListingApprovedEnvelope struct {
 	Type    NotificationEventType `json:"type"`
+	EventID uuid.UUID             `json:"event_id"`
+	Version int                   `json:"version"`
 	Payload ListingApprovedEvent  `json:"payload"`
 }
 
@@ -35,6 +40,8 @@ type ListingApprovedEvent struct {
 
 type RejectedEnvelope struct {
 	Type    NotificationEventType           `json:"type"`
+	EventID uuid.UUID                       `json:"event_id"`
+	Version int                             `json:"version"`
 	Payload NewGigRejectedNotificationEvent `json:"payload"`
 }
 
@@ -54,5 +61,21 @@ type GigCategoryMatchedEvent struct {
 
 type GigCategoryMatchedEventEnvelope struct {
 	Type    NotificationEventType   `json:"type"`
+	EventID uuid.UUID               `json:"event_id"`
+	Version int                     `json:"version"`
 	Payload GigCategoryMatchedEvent `json:"payload"`
+}
+
+// StableEventID returns the same ID for repeated publication of the same
+// logical event. This lets downstream consumers deduplicate the worker's
+// intentionally at-least-once notification delivery without requiring an
+// outbox or persisted publication record in this service.
+func StableEventID(eventType NotificationEventType, aggregateIDs ...uuid.UUID) uuid.UUID {
+	parts := make([]string, 0, len(aggregateIDs)+2)
+	parts = append(parts, "yevmiye-categorization", string(eventType))
+	for _, id := range aggregateIDs {
+		parts = append(parts, id.String())
+	}
+
+	return uuid.NewSHA1(uuid.NameSpaceURL, []byte(strings.Join(parts, ":")))
 }

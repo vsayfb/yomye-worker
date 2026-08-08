@@ -85,6 +85,50 @@ func (f *FallbackExtractor) Extract(
 	return nil, fmt.Errorf("all extractors failed: %w", errors.Join(errs...))
 }
 
+func (f *FallbackExtractor) ExtractCategoryPath(
+	ctx context.Context,
+	description, baseCategorySlug, catalog string,
+) (*ExtractedListing, error) {
+	if len(f.extractors) == 0 {
+		return nil, fmt.Errorf("no extractors configured")
+	}
+
+	totalCtx, cancelTotal := context.WithTimeout(ctx, f.totalTimeout)
+	defer cancelTotal()
+
+	var errs []error
+
+	for index, e := range f.extractors {
+		attemptCtx, cancelAttempt := context.WithTimeout(totalCtx, f.providerTimeout)
+		res, err := e.ExtractCategoryPath(attemptCtx, description, baseCategorySlug, catalog)
+		cancelAttempt()
+
+		if err == nil {
+			return res, nil
+		}
+
+		metrics.ObserveAIProviderFailure(ctx, e.Generator(), err)
+		errs = append(errs, fmt.Errorf("%s: %w", e.Generator(), err))
+
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if totalCtx.Err() != nil {
+			return nil, fmt.Errorf(
+				"AI category extraction exceeded total fallback deadline %s: %w",
+				f.totalTimeout,
+				errors.Join(errs...),
+			)
+		}
+
+		if index+1 < len(f.extractors) {
+			metrics.ObserveAIFallback(ctx, e.Generator(), f.extractors[index+1].Generator())
+		}
+	}
+
+	return nil, fmt.Errorf("all category extractors failed: %w", errors.Join(errs...))
+}
+
 func (f *FallbackExtractor) Classify(ctx context.Context, description string) (string, error) {
 	if len(f.extractors) == 0 {
 		return "", fmt.Errorf("no extractors configured")

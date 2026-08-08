@@ -172,5 +172,6 @@ type EmbeddingClient interface {
 type Extractor interface {
 	Generator() string
 	Classify(ctx context.Context, description string) (string, error)
+	ExtractCategoryPath(ctx context.Context, description, baseCategorySlug, catalog string) (*ExtractedListing, error)
 	Extract(ctx context.Context, description, baseCategorySlug, catalog string) (*ExtractedListing, error)
 }

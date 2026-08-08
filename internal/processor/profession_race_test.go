@@ -57,7 +57,11 @@ func TestProfessionProcessor_LockedCheckCatchesRaceAfterEarlyCheckPasses(t *test
 	}
 
 	fallback := extractor.NewFallbackExtractor(&fakeExtractor{
-		extract: func(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error) {
+		extract: func(context.Context, string, string, string) (*extractor.ExtractedListing, error) {
+			t.Fatal("profession processing must not invoke full listing/gig-details extraction")
+			return nil, nil
+		},
+		extractCategoryPath: func(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error) {
 			return fakeExtractedProfession(), nil
 		},
 	})
@@ -119,7 +123,11 @@ func TestProfessionProcessor_LinksCategoryWhenNotStale(t *testing.T) {
 	}
 
 	fallback := extractor.NewFallbackExtractor(&fakeExtractor{
-		extract: func(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error) {
+		extract: func(context.Context, string, string, string) (*extractor.ExtractedListing, error) {
+			t.Fatal("profession processing must not invoke full listing/gig-details extraction")
+			return nil, nil
+		},
+		extractCategoryPath: func(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error) {
 			return fakeExtractedProfession(), nil
 		},
 	})

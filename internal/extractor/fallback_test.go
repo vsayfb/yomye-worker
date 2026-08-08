@@ -9,9 +9,10 @@ import (
 )
 
 type fallbackTestExtractor struct {
-	generator  string
-	extractFn  func(context.Context) (*ExtractedListing, error)
-	classifyFn func(context.Context) (string, error)
+	generator             string
+	extractFn             func(context.Context) (*ExtractedListing, error)
+	extractCategoryPathFn func(context.Context) (*ExtractedListing, error)
+	classifyFn            func(context.Context) (string, error)
 }
 
 func (f *fallbackTestExtractor) Generator() string { return f.generator }
@@ -20,6 +21,16 @@ func (f *fallbackTestExtractor) Extract(
 	ctx context.Context,
 	_, _, _ string,
 ) (*ExtractedListing, error) {
+	return f.extractFn(ctx)
+}
+
+func (f *fallbackTestExtractor) ExtractCategoryPath(
+	ctx context.Context,
+	_, _, _ string,
+) (*ExtractedListing, error) {
+	if f.extractCategoryPathFn != nil {
+		return f.extractCategoryPathFn(ctx)
+	}
 	return f.extractFn(ctx)
 }
 
@@ -148,5 +159,30 @@ func TestFallbackExtractor_CallerCancellationStopsFallback(t *testing.T) {
 	}
 	if secondCalled.Load() {
 		t.Fatal("second provider must not run after caller cancellation")
+	}
+}
+
+func TestFallbackExtractor_CategoryPathDoesNotRunFullExtraction(t *testing.T) {
+	provider := &fallbackTestExtractor{
+		generator: "category-only:model",
+		extractFn: func(context.Context) (*ExtractedListing, error) {
+			t.Fatal("full listing extraction must not run for category-path-only requests")
+			return nil, nil
+		},
+		extractCategoryPathFn: func(context.Context) (*ExtractedListing, error) {
+			return &ExtractedListing{
+				BaseCategorySlug: "gig",
+				GeneratedBy:      "category-only:model",
+			}, nil
+		},
+	}
+
+	fallback := NewFallbackExtractor(provider)
+	result, err := fallback.ExtractCategoryPath(context.Background(), "description", "gig", "catalog")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.GeneratedBy != "category-only:model" {
+		t.Fatalf("generated_by = %q, want category-only:model", result.GeneratedBy)
 	}
 }

@@ -56,6 +56,8 @@ func (p *SQSPublisher) PublishListingApproved(
 	slog.InfoContext(ctx,
 		"listing-approved event published",
 		"message_id", aws.ToString(inf.MessageId),
+		"event_id", event.EventID,
+		"event_version", event.Version,
 		"listing_id", event.Payload.ListingID,
 	)
 
@@ -101,7 +103,15 @@ func (p *SQSPublisher) PublishGigCategoryMatched(ctx context.Context, event GigC
 		return fmt.Errorf("sqs: send message: %w", err)
 	}
 
-	slog.InfoContext(ctx, "sqs message sent for (gig_matched_subsribers):", "message", aws.ToString(inf.MessageId))
+	slog.InfoContext(
+		ctx,
+		"gig-category-matched event published",
+		"message_id", aws.ToString(inf.MessageId),
+		"event_id", event.EventID,
+		"event_version", event.Version,
+		"gig_id", event.Payload.GigID,
+		"category_id", event.Payload.CategoryID,
+	)
 
 	return nil
 }

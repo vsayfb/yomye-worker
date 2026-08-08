@@ -106,7 +106,7 @@ Embedded prompts live in `internal/prompter/prompts/`:
 
 `internal/prompter/loader.go` embeds the prompt files. `builder.go` injects the current active canonical catalog into the category-path prompt.
 
-Category extraction and details extraction are separate AI calls. The category-path response includes `source_locale`, canonical English fields, localized source-language fields, and `is_selectable` for every node. Details extraction produces the listing title and gig details. Validation must reject malformed paths before persistence.
+Category extraction and details extraction are separate AI calls. The category-path response includes `source_locale`, canonical English fields, localized source-language fields, and `is_selectable` for every node. Listing processing runs both calls because it needs gig details; profession processing runs category-path extraction only and must not generate/discard gig details. Details extraction produces the listing title and gig details. Validation must reject malformed paths before persistence.
 
 Configured providers are assembled in `cmd/worker/app.go`. Current fallback order is:
 
@@ -213,6 +213,8 @@ Category creation, localization writes, embedding writes, category association, 
 
 Core stores the latest `profession_request_id` on the user. Profession processing performs a cheap stale-event check before AI calls, then locks the user and repeats the check inside the persistence transaction. If a newer request superseded the event, ignore it safely. Preserve this two-stage strategy: it avoids wasting AI quota and prevents an old SQS delivery from overwriting a newer profession.
 
+Profession processing uses `FallbackExtractor.ExtractCategoryPath`, not full listing extraction. It must not call the gig-details prompt because the profession workflow persists only the resolved category association.
+
 The final association must be an active, selectable category in the `gig` base category. A user has exactly one selected offered-service category.
 
 ## Emitted events
@@ -221,6 +223,8 @@ After a listing commits, and again on an `OPEN` replay, the worker publishes:
 
 - `listing_approved`: recipient, listing UUID, base-category slug, title, timestamp.
 - `gig_category_matched`: listing/gig UUID, category UUID, optional `country_id`, optional `place_id`, timestamp.
+
+Every emitted notification envelope includes `event_id` and `version`. `version` is currently `1`. Event IDs are deterministic for the same logical event so an `OPEN` replay publishes the same ID again: `listing_approved` is keyed by listing UUID and `gig_category_matched` by listing UUID plus category UUID. Downstream consumers should use `event_id` for idempotent handling of the worker's at-least-once publication semantics.
 
 The category UUID is identity. Never attach localized names/slugs as identity in listing, user, notification, or search contracts.
 
@@ -233,8 +237,9 @@ Notifications happen after the database commit. DB work is atomic, but event pub
 - The worker long-polls SQS in batches of up to 10.
 - Processing concurrency is bounded by configuration; the DB pool is sized with headroom.
 - A single message has a two-minute processing deadline.
-- The receive visibility timeout is three minutes and must remain strictly longer than the processing deadline. The extra minute prevents SQS from redelivering a message while a valid in-flight attempt may still be running.
-- Shutdown stops receiving and drains in-flight work; in-flight work is detached from the shutdown context but remains timeout-bound.
+- The receive visibility timeout is three minutes and must remain strictly longer than the processing deadline.
+- Shutdown stops receiving and drains in-flight work; in-flight work is detached from the shutdown context but remains timeout-bound. The application then gets up to 10 seconds to stop HTTP/telemetry/resources.
+- The worker is deployed as a `systemd` service. Its unit must allow the process to drain in-flight work before force termination; the repository provides `deploy/systemd/10-graceful-stop.conf` with `TimeoutStopSec=135s` and `KillSignal=SIGTERM`.
 - Panics are recovered per message so one bad record cannot crash the process.
 - Delete an SQS message after successful processing, or when it is explicitly classified as a permanent message-contract failure that retrying cannot fix.
 - Permanent failures are intentionally narrow: missing/unknown message type, malformed message JSON, or invalid required payload fields. Do not classify database, AI/provider, embedding, network, timeout, panic, or other runtime/dependency failures as permanent.
@@ -312,6 +317,30 @@ The user has stated that this worker owns category-related schema design, while 
 - Current situation: OpenTelemetry now records successful messages, failed messages, transient retry decisions, processing duration, AI provider failures, AI fallback transitions, category created/reused decisions for listing/profession flows, and embedding failures. Labels are intentionally low-cardinality.
 - Why: staging needs enough signal to answer whether the worker is healthy, why work is retrying, which AI providers are degrading, and whether taxonomy behavior is changing unexpectedly without relying on manual log inspection.
 
+### 2026-08-09 — Event timestamp completeness
+
+- Previous situation: `listing_approved` populated `occurred_at`, but `gig_category_matched` left it unset and serialized Go's zero time (`0001-01-01T00:00:00Z`). The existing JSON contract test encoded that broken value.
+- Current situation: `gig_category_matched` now sets `occurred_at` to the UTC publication time, and contract/processor tests require a real non-zero timestamp.
+- Why: downstream event timestamps must represent an actual occurrence/publication rather than an accidental zero-value implementation detail.
+
+### 2026-08-09 — Versioned, deduplicatable notification events
+
+- Previous situation: notification envelopes contained only `type` and `payload`. Replays could intentionally publish duplicates, but consumers had no stable event identity for deduplication and no explicit schema version for contract evolution.
+- Current situation: all notification envelope types carry `event_id` and `version`; the current schema version is `1`. IDs are deterministic for the logical event, so retries/replays produce the same ID instead of a fresh UUID. `listing_approved` uses event type + listing UUID; `gig_category_matched` uses event type + listing UUID + category UUID.
+- Why: the worker deliberately provides at-least-once publication. Stable IDs let consumers implement practical idempotency, while explicit versions let event contracts evolve without inferring schema shape from payload fields.
+
+### 2026-08-09 — Profession extraction is category-only
+
+- Previous situation: `ProfessionPublished` called the same full extraction path as listings. Providers generated both the category path and gig details even though profession processing discarded the gig-details result.
+- Current situation: extractors expose a category-path-only operation and `ProfessionProcessor` uses it through the same sequential fallback/time-budget policy. Listing processing still performs category path plus gig-details extraction.
+- Why: profession registration only persists a category association. Avoiding the second prompt removes unnecessary AI latency, quota usage, and cost without changing taxonomy behavior.
+
+### 2026-08-09 — Graceful shutdown budget aligned with systemd
+
+- Previous situation: the application already stopped receiving on SIGTERM and allowed in-flight messages up to their two-minute processing deadline before running up to 10 seconds of HTTP/telemetry/resource cleanup, but the repository did not define the corresponding `systemd` stop budget. A unit with a shorter `TimeoutStopSec` could therefore force-kill the process before that graceful drain completed.
+- Current situation: the two-minute message processing deadline is preserved, application cleanup has an explicit 10-second budget, and `deploy/systemd/10-graceful-stop.conf` sets `KillSignal=SIGTERM` and `TimeoutStopSec=135s`. The drop-in is intended to be installed for the actual worker unit used in staging.
+- Why: 135 seconds covers the worst-case 120 seconds of remaining in-flight work plus 10 seconds of application cleanup with a 5-second margin. This keeps the service-manager timeout aligned with the application's existing graceful-shutdown behavior without shortening valid message processing.
+
 ## Repository map
 
 - `cmd/worker/`: dependency wiring and message-type dispatch.
@@ -325,6 +354,7 @@ The user has stated that this worker owns category-related schema design, while 
 - `pkg/embeddings/`: local Ollama embedding client.
 - `pkg/dbtx/`: transaction context propagation.
 - `migrations/`: category-domain schema.
+- `deploy/systemd/`: systemd drop-in settings required for graceful worker shutdown.
 
 ## Working practices
 
@@ -338,6 +368,7 @@ The user has stated that this worker owns category-related schema design, while 
 - Use `apply_patch` for manual file edits.
 - Preserve unrelated dirty-worktree changes. Inspect `git status` before editing and before committing.
 - Do not commit or push unless the user asks. If asked to commit only, do not push.
+- After each implemented fix, update this file's decision history with `Previous situation`, `Current situation`, and `Why`, and provide the user a commit message for that fix/change set.
 - Before handing off implementation changes, normally run:
 
 ```bash

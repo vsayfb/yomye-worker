@@ -121,9 +121,10 @@ func (f *fakeRepository) UpsertUserProfessionCategory(ctx context.Context, userI
 // control what a "real" AI extraction call would return without any
 // network access.
 type fakeExtractor struct {
-	generator string
-	classify  func(ctx context.Context, description string) (string, error)
-	extract   func(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error)
+	generator           string
+	classify            func(ctx context.Context, description string) (string, error)
+	extract             func(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error)
+	extractCategoryPath func(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error)
 }
 
 func (f *fakeExtractor) Generator() string {
@@ -138,6 +139,13 @@ func (f *fakeExtractor) Classify(ctx context.Context, description string) (strin
 }
 
 func (f *fakeExtractor) Extract(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error) {
+	return f.extract(ctx, description, baseCategorySlug, catalog)
+}
+
+func (f *fakeExtractor) ExtractCategoryPath(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error) {
+	if f.extractCategoryPath != nil {
+		return f.extractCategoryPath(ctx, description, baseCategorySlug, catalog)
+	}
 	return f.extract(ctx, description, baseCategorySlug, catalog)
 }
 

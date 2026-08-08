@@ -49,11 +49,34 @@ func (o *OpenAIExtractor) Extract(
 	ctx context.Context,
 	description, baseCategorySlug, catalog string,
 ) (*ExtractedListing, error) {
+	listing, err := o.ExtractCategoryPath(ctx, description, baseCategorySlug, catalog)
+	if err != nil {
+		return nil, err
+	}
+
 	detailsPrompt := prompter.GigPrompt()
 	if baseCategorySlug == "for-sale" {
 		detailsPrompt = prompter.SalePrompt()
 	}
 
+	rawDetails, err := o.complete(ctx, detailsPrompt, description)
+	if err != nil {
+		return nil, fmt.Errorf("extract %s details: %w", baseCategorySlug, err)
+	}
+	details, err := decodeDetails(baseCategorySlug, listing.CategoryPath, rawDetails)
+	if err != nil {
+		return nil, err
+	}
+	details.GeneratedBy = listing.GeneratedBy
+	details.SourceLocale = listing.SourceLocale
+
+	return details, nil
+}
+
+func (o *OpenAIExtractor) ExtractCategoryPath(
+	ctx context.Context,
+	description, baseCategorySlug, catalog string,
+) (*ExtractedListing, error) {
 	rawPath, err := o.complete(
 		ctx,
 		prompter.CategoryPathPrompt(baseCategorySlug, catalog),
@@ -67,18 +90,12 @@ func (o *OpenAIExtractor) Extract(
 		return nil, err
 	}
 
-	rawDetails, err := o.complete(ctx, detailsPrompt, description)
-	if err != nil {
-		return nil, fmt.Errorf("extract %s details: %w", baseCategorySlug, err)
-	}
-	listing, err := decodeDetails(baseCategorySlug, categoryPath, rawDetails)
-	if err != nil {
-		return nil, err
-	}
-	listing.GeneratedBy = o.generatedBy
-	listing.SourceLocale = sourceLocale
-
-	return listing, nil
+	return &ExtractedListing{
+		BaseCategorySlug: baseCategorySlug,
+		SourceLocale:     sourceLocale,
+		CategoryPath:     categoryPath,
+		GeneratedBy:      o.generatedBy,
+	}, nil
 }
 
 func (o *OpenAIExtractor) complete(
