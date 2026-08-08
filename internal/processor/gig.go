@@ -65,7 +65,7 @@ type GigProcessor struct {
 	repo                  Repository
 	embeddingClient       EmbeddingClient
 	fallback              *extractor.FallbackExtractor
-	notificationPublisher notification.SQSPublisher
+	notificationPublisher notification.Publisher
 	cfg                   *config.Config
 }
 
@@ -73,7 +73,7 @@ func NewGigProcessor(
 	repo Repository,
 	embeddingClient EmbeddingClient,
 	fallback *extractor.FallbackExtractor,
-	notificationPublisher notification.SQSPublisher,
+	notificationPublisher notification.Publisher,
 	cfg *config.Config,
 ) *GigProcessor {
 	return &GigProcessor{
@@ -129,10 +129,9 @@ func (s *GigProcessor) processListing(ctx context.Context, msg ListingCreatedMes
 
 	if result.AlreadyOpen {
 		logListingAlreadyOpen(ctx, msg.ListingID)
-		return nil
+	} else {
+		logListingCategorized(ctx, msg.ListingID, result)
 	}
-
-	logListingCategorized(ctx, msg.ListingID, result)
 
 	return s.publishNotifications(ctx, msg, result)
 }

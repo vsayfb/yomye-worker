@@ -7,9 +7,8 @@ import (
 )
 
 func NewSQS(cfg aws.Config, appCfg *config.Config) *sqs.Client {
-	if appCfg.App.Env == config.EnvironmentProduction {
+	if appCfg.AWS.SQSEndpoint == "" {
 		return sqs.NewFromConfig(cfg)
-
 	}
 
 	return sqs.NewFromConfig(cfg, func(o *sqs.Options) {

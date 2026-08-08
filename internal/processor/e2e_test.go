@@ -123,7 +123,7 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 	return &e2eEnv{
 		cfg:        cfg,
 		db:         db,
-		gig:        NewGigProcessor(repo, embeddingClient, fallback, *publisher, cfg),
+		gig:        NewGigProcessor(repo, embeddingClient, fallback, publisher, cfg),
 		profession: NewProfessionProcessor(repo, embeddingClient, fallback, cfg),
 	}
 }

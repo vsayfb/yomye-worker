@@ -1,10 +1,16 @@
 package notification
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type Publisher interface {
+	PublishListingApproved(context.Context, ListingApprovedEnvelope) error
+	PublishGigCategoryMatched(context.Context, GigCategoryMatchedEventEnvelope) error
+}
 
 type NotificationEventType string
 

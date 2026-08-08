@@ -31,7 +31,10 @@ type DBConfig struct {
 }
 
 type AWSConfig struct {
-	Region                    string
+	Region string
+	// AccessKeyID and SecretAccessKey are development/LocalStack-only.
+	// Staging uses the AWS SDK default credential chain so IAM/STS credentials
+	// retain their session token and refresh behavior.
 	AccessKeyID               string
 	SecretAccessKey           string
 	SQSEndpoint               string

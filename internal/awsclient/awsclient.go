@@ -11,19 +11,23 @@ import (
 )
 
 func New(ctx context.Context, cfg *config.Config) (aws.Config, error) {
-	if cfg.App.Env == config.EnvironmentProduction {
-		return awscfg.LoadDefaultConfig(ctx)
+	if cfg.App.Env == config.EnvironmentDevelopment {
+		return awscfg.LoadDefaultConfig(
+			ctx,
+			awscfg.WithRegion(cfg.AWS.Region),
+			awscfg.WithCredentialsProvider(
+				credentials.NewStaticCredentialsProvider(
+					cfg.AWS.AccessKeyID,
+					cfg.AWS.SecretAccessKey,
+					"",
+				),
+			),
+		)
 	}
 
-	return awscfg.LoadDefaultConfig(
-		ctx,
-		awscfg.WithRegion(cfg.AWS.Region),
-		awscfg.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(
-				cfg.AWS.AccessKeyID,
-				cfg.AWS.SecretAccessKey,
-				"",
-			),
-		),
-	)
+	if cfg.AWS.Region != "" {
+		return awscfg.LoadDefaultConfig(ctx, awscfg.WithRegion(cfg.AWS.Region))
+	}
+
+	return awscfg.LoadDefaultConfig(ctx)
 }

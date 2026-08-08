@@ -170,7 +170,7 @@ The worker must:
 2. Extract/resolve the canonical hierarchy and source localization.
 3. Generate canonical embeddings.
 4. Start a transaction and lock the listing row.
-5. If already `OPEN`, treat redelivery as an idempotent no-op.
+5. If already `OPEN`, do not mutate listing/category state again; reload the stored classification and continue to notification publication.
 6. While still `PROCESSING`, set `base_category_id` and `description_clean`.
 7. Reuse/create every category path node and ensure its source-locale localization.
 8. Attach only the final active selectable gig category through `listing_categories`.
@@ -200,7 +200,7 @@ The final association must be an active, selectable category in the `gig` base c
 
 ## Emitted events
 
-After a newly processed listing commits, the worker publishes:
+After a listing commits, and again on an `OPEN` replay, the worker publishes:
 
 - `listing_approved`: recipient, listing UUID, base-category slug, title, timestamp.
 - `gig_category_matched`: listing/gig UUID, category UUID, optional `country_id`, optional `place_id`, timestamp.
@@ -209,7 +209,7 @@ The category UUID is identity. Never attach localized names/slugs as identity in
 
 The notification/search Lambda historically consumed integer `city_id`/`district_id`. New events use UUID `country_id`/`place_id`; keep downstream consumers informed and do not silently restore legacy fields.
 
-Notifications happen after the database commit. Therefore DB work is atomic, but event publication is not in the same transaction. Be careful when changing replay behavior: an already-open replay currently avoids duplicate publication. If stronger delivery guarantees are required, propose an outbox rather than publishing from inside the DB transaction.
+Notifications happen after the database commit. DB work is atomic, but event publication is not in the same transaction. An `OPEN` replay intentionally publishes the required events again. This gives the current design at-least-once publication semantics: a post-commit publish failure can recover on SQS redelivery, while duplicate downstream events remain possible and consumers must tolerate them. Do not publish from inside the DB transaction. If strict deduplication/exactly-once delivery becomes a requirement, revisit the design explicitly rather than hiding it in processor logic.
 
 ## SQS reliability and concurrency
 
@@ -224,7 +224,7 @@ Notifications happen after the database commit. Therefore DB work is atomic, but
 - Transient/runtime failures remain undeleted for normal SQS redelivery. DLQ behavior belongs to the AWS queue redrive policy; do not add application-side DLQ publishing unless that architecture is explicitly changed.
 - If deleting a permanently invalid message fails, leave it retryable because the worker has not successfully acknowledged/discarded it.
 - Missing LocalStack queues or receive failures use exponential backoff: 1s, 2s, 4s, 8s, 16s, then 30s maximum. Reset after a successful receive.
-- Keep processing idempotent because SQS is at-least-once.
+- Keep database processing idempotent because SQS is at-least-once. Notification publication is also at-least-once and may duplicate on replay.
 
 ## Database ownership and migrations
 
@@ -247,16 +247,35 @@ The user has stated that this worker owns category-related schema design, while 
 - Provider-neutral services over person-only professions: supports businesses and individuals, but requires the prompt to distinguish service names (`Car Wash`) from conventional roles (`Lawyer`).
 - Explicit selectability over leaf inference: categories can evolve without breaking existing assignments.
 - Sequential AI fallback over parallel fan-out: limits quota/cost and uses deterministic provenance, but increases worst-case latency. Keep per-message timeout and concise prompts in mind.
-- Post-commit notifications preserve DB correctness but can be lost between commit and publish. Use an outbox if delivery requirements become stricter.
+- Post-commit notifications preserve DB correctness. Re-publishing on `OPEN` replay closes the silent-loss window but accepts possible duplicate events. Introduce an outbox only if future requirements justify stronger delivery/deduplication guarantees.
 
 ## Recent implementation decisions
 
 ### 2026-08-09 — SQS visibility and permanent message failures
 
-- Set message visibility to three minutes while keeping the per-message processing deadline at two minutes. Reason: the previous 60-second visibility window could expose the same message to another worker while the first valid attempt was still running, duplicating AI/embedding work.
-- Introduced an explicit permanent-error marker for message-contract failures only. Reason: malformed or unsupported input cannot become valid through retry, while infrastructure and dependency failures can recover and must retain SQS retry behavior.
-- Permanently invalid messages are logged and deleted; transient failures remain undeleted. Reason: avoid poison-message retry loops without weakening at-least-once recovery for operational failures.
-- Keep DLQ/redrive handling in AWS SQS configuration instead of publishing to a DLQ from application code. Reason: queue redrive policy already owns retry exhaustion and keeps transport policy outside business processing.
+#### Visibility timeout
+
+- Previous situation: SQS message visibility was 60 seconds while one processing attempt could run for up to two minutes. The same message could therefore become visible to another worker before the first valid attempt finished.
+- Current situation: receive visibility is three minutes while the processing deadline remains two minutes.
+- Why: keep the visibility window strictly longer than a valid processing attempt and avoid avoidable concurrent duplicate AI/embedding work.
+
+#### Permanent message failures
+
+- Previous situation: every processing error left the message undeleted, including malformed JSON, missing required fields, and unsupported message types that can never succeed on retry.
+- Current situation: message-contract failures are explicitly marked permanent, logged, and deleted; database, AI/provider, embedding, network, timeout, panic, and other runtime/dependency failures remain retryable. DLQ/redrive remains an AWS SQS queue policy concern.
+- Why: stop poison messages from retrying forever without weakening recovery for failures that can actually become healthy later.
+
+### 2026-08-09 — Post-commit notification recovery
+
+- Previous situation: after the DB transaction committed, notification publication could fail. SQS would redeliver the input, but an already-`OPEN` listing returned successfully without publishing again, so a required downstream event could be permanently lost.
+- Current situation: an already-`OPEN` replay leaves database state untouched, reloads the stored category/title, and publishes `listing_approved` and `gig_category_matched` again. A publication error still returns an error so the input message remains retryable.
+- Why: close the commit/publish loss window with the simplest current architecture. The resulting contract is at-least-once event publication, so duplicate events are acceptable on replay and downstream consumers must be idempotent.
+
+### 2026-08-09 — AWS staging credential lifecycle
+
+- Previous situation: staging loaded the AWS default credential provider once, immediately retrieved credentials, copied only access key/secret into application config, and later rebuilt a static credential provider. This discarded the session token and prevented IAM/STS credentials from refreshing.
+- Current situation: staging AWS clients use the AWS SDK default credential chain directly, preserving temporary session tokens and automatic refresh. Development still uses the explicitly configured static credentials needed for LocalStack. An SQS endpoint override is applied only when one is actually configured.
+- Why: staging should rely on IAM/default-chain credential lifecycle rather than snapshotting temporary credentials at process startup, while local development should remain simple and deterministic.
 
 ## Repository map
 

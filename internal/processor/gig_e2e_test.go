@@ -12,8 +12,8 @@ import (
 // TestGigProcessor_E2E_ClassifiesAndOpensListing runs the real pipeline: a
 // live AI provider classifies and extracts the listing, real embeddings are
 // generated for the category path, everything is persisted to a real
-// database, and (since AlreadyOpen skips it) a real SQS notification is
-// published on first processing.
+// database, and real SQS notifications are published. Replays of an OPEN
+// listing intentionally publish again to provide at-least-once event delivery.
 //
 // Yövmiye is gig-only for launch, so the processor resolves the gig base
 // category directly and requires a selectable gig category association.
@@ -97,9 +97,9 @@ func TestGigProcessor_E2E_ClassifiesAndOpensListing(t *testing.T) {
 		t.Fatal("listing was associated with a non-selectable category")
 	}
 
-	// Idempotent replay: SQS redelivery of the same listing-created message
-	// must be a safe no-op (AlreadyOpen) rather than erroring or attempting
-	// to re-extract/re-publish.
+	// Idempotent database replay: SQS redelivery must not change persisted
+	// categorization. Notifications are intentionally re-published so a prior
+	// post-commit publication failure can recover on redelivery.
 	replay := Message{ID: uuid.New().String(), Type: "GigPublished", Body: string(body)}
 	if err := env.gig.Process(ctx, replay); err != nil {
 		t.Fatalf("reprocess already-open listing: %v", err)
