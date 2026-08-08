@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/extractor"
+	"github.com/vsayfb/gig-platform-categorization-service/pkg/metrics"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 )
@@ -137,9 +138,11 @@ func (s *ProfessionProcessor) Process(ctx context.Context, record Message) (err 
 			categoryEmbeddingText(extracted.CategoryPath, index),
 		)
 		if err != nil {
+			metrics.ObserveEmbeddingFailure(ctx, "profession")
 			return fmt.Errorf("generate profession category embedding for %q: %w", node.CanonicalName, err)
 		}
 		if len(embedding) == 0 {
+			metrics.ObserveEmbeddingFailure(ctx, "profession")
 			return fmt.Errorf("generate profession category embedding for %q: empty embedding", node.CanonicalName)
 		}
 
@@ -190,7 +193,9 @@ func (s *ProfessionProcessor) Process(ctx context.Context, record Message) (err 
 				return fmt.Errorf("find profession category at depth %d: %w", depth, err)
 			}
 
+			resolutionAction := "reused"
 			if category == nil {
+				resolutionAction = "created"
 				category, err = s.repo.CreateCategory(
 					txCtx,
 					baseCategoryID,
@@ -223,6 +228,7 @@ func (s *ProfessionProcessor) Process(ctx context.Context, record Message) (err 
 					depth,
 				)
 			}
+			metrics.ObserveCategoryResolution(txCtx, "profession", resolutionAction)
 
 			if err := s.repo.EnsureCategoryLocalization(txCtx, CategoryLocalization{
 				CategoryID:  category.ID,

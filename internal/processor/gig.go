@@ -15,6 +15,7 @@ import (
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/extractor"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/notification"
+	"github.com/vsayfb/gig-platform-categorization-service/pkg/metrics"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -247,9 +248,11 @@ func (s *GigProcessor) embedCategoryNode(
 ) (embeddedCategoryNode, error) {
 	embedding, err := s.embeddingClient.Embed(ctx, categoryEmbeddingText(categoryPath, index))
 	if err != nil {
+		metrics.ObserveEmbeddingFailure(ctx, "listing")
 		return embeddedCategoryNode{}, fmt.Errorf("generate category embedding for %q: %w", node.CanonicalName, err)
 	}
 	if len(embedding) == 0 {
+		metrics.ObserveEmbeddingFailure(ctx, "listing")
 		return embeddedCategoryNode{}, fmt.Errorf("generate category embedding for %q: empty embedding", node.CanonicalName)
 	}
 	return embeddedCategoryNode{Node: node, Embedding: embedding}, nil
@@ -410,6 +413,7 @@ func (s *GigProcessor) findOrCreateCategory(
 		return nil, fmt.Errorf("find similar category at depth %d: %w", depth, err)
 	}
 	if category != nil {
+		metrics.ObserveCategoryResolution(ctx, "listing", "reused")
 		if embedded.Node.IsSelectable && !category.IsSelectable {
 			category, err = s.repo.PromoteCategorySelectable(ctx, category.ID, baseCategoryID)
 			if err != nil {
@@ -440,6 +444,7 @@ func (s *GigProcessor) findOrCreateCategory(
 	if category == nil {
 		return nil, fmt.Errorf("create category at depth %d: repository returned nil category", depth)
 	}
+	metrics.ObserveCategoryResolution(ctx, "listing", "created")
 	if err := s.ensureLocalization(ctx, category.ID, embedded.Node, generatedBy); err != nil {
 		return nil, fmt.Errorf("ensure category localization at depth %d: %w", depth, err)
 	}

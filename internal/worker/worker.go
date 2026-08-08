@@ -244,6 +244,8 @@ func (w *Worker) handleMessage(ctx context.Context, m types.Message) {
 			return
 		}
 
+		metrics.ObserveWorkerRetry(msgCtx, msgType)
+
 		slog.ErrorContext(msgCtx,
 			"message processing failed",
 			"message_id", aws.ToString(m.MessageId),
@@ -270,7 +272,12 @@ func (w *Worker) processMessage(ctx context.Context, m types.Message) (err error
 			)
 		}
 
-		metrics.ObserveWorkerProcessing(ctx, start, err)
+		metrics.ObserveWorkerProcessing(
+			ctx,
+			start,
+			aws.ToString(m.MessageAttributes["Type"].StringValue),
+			err,
+		)
 	}()
 
 	msg := processor.Message{

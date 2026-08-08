@@ -116,7 +116,7 @@ Configured providers are assembled in `cmd/worker/app.go`. Current fallback orde
 4. Mistral
 5. Nvidia
 
-Only fully configured providers are included. `FallbackExtractor` tries providers sequentially, records provider/model provenance as `generated_by`, stops on success, and returns joined errors when all fail. Preserve fallback behavior: quota, payment, rate-limit, invalid JSON, and provider outages should allow the next provider to run. Keep output token limits controlled; oversized `max_tokens` previously caused avoidable credit failures.
+Only fully configured providers are included. `FallbackExtractor` tries providers sequentially, records provider/model provenance as `generated_by`, stops on success, and returns joined errors when all fail. Each provider attempt has a 25-second deadline and the whole fallback chain has a 75-second deadline. Provider-level errors, invalid responses, and per-provider timeouts allow the next configured provider to run; caller cancellation or exhaustion of the total fallback deadline stops the chain immediately. Keep these budgets below the worker's two-minute message deadline so embeddings, database work, and notification publication retain time to finish. Keep output token limits controlled; oversized `max_tokens` previously caused avoidable credit failures.
 
 Prompts require JSON responses. OpenAI-compatible providers use JSON response format and temperature zero; Gemini requests JSON MIME output. Avoid brittle parsing hacks when prompt/schema validation can solve the issue cleanly.
 
@@ -128,6 +128,23 @@ The local embedding integration uses Ollama with `all-minilm:l12-v2` (about 67 M
 - Generate embeddings from canonical English concept data, not just a localized label.
 - Current embedding text is canonical breadcrumb, canonical name, and canonical description.
 - Embeddings help semantic sibling reuse; parent scope remains mandatory so similarity cannot merge concepts across unrelated branches.
+
+## Operational metrics
+
+Use the existing OpenTelemetry metric pipeline; do not add a parallel metrics stack for worker/domain signals.
+
+The staging-critical metric set is:
+
+- `categorization.worker.messages_processed_total`: successfully processed messages, labeled by message type.
+- `categorization.worker.messages_failed_total`: processing failures, labeled by message type.
+- `categorization.worker.message_retries_total`: transient failures deliberately left on SQS for redelivery, labeled by message type.
+- `categorization.worker.message_processing.duration`: end-to-end worker processing duration by message type.
+- `categorization.ai.provider_failures_total`: failed AI provider attempts, labeled by generator and failure reason (`error`, `timeout`, or `canceled`).
+- `categorization.ai.fallbacks_total`: transitions from one AI generator to the next.
+- `categorization.taxonomy.category_resolutions_total`: category resolution decisions with `action=created|reused` and `workflow=listing|profession`.
+- `categorization.embedding.failures_total`: embedding failures labeled by listing/profession workflow.
+
+Metric attributes must stay low-cardinality. Do not add listing IDs, user IDs, request IDs, descriptions, category UUIDs, or arbitrary error strings as metric labels. Those belong in logs/traces.
 
 ## Listing processing contract
 
@@ -276,6 +293,24 @@ The user has stated that this worker owns category-related schema design, while 
 - Previous situation: staging loaded the AWS default credential provider once, immediately retrieved credentials, copied only access key/secret into application config, and later rebuilt a static credential provider. This discarded the session token and prevented IAM/STS credentials from refreshing.
 - Current situation: staging AWS clients use the AWS SDK default credential chain directly, preserving temporary session tokens and automatic refresh. Development still uses the explicitly configured static credentials needed for LocalStack. An SQS endpoint override is applied only when one is actually configured.
 - Why: staging should rely on IAM/default-chain credential lifecycle rather than snapshotting temporary credentials at process startup, while local development should remain simple and deterministic.
+
+### 2026-08-09 — Bounded AI fallback execution
+
+- Previous situation: every provider inherited only the worker's outer two-minute message deadline. A slow or hung provider could consume most of that budget before fallback, leaving little time for later providers, embeddings, database persistence, and notification publication.
+- Current situation: each AI provider attempt is bounded to 25 seconds and the entire sequential provider chain is bounded to 75 seconds. A provider error, invalid response, or per-provider timeout falls through to the next configured provider. Caller cancellation or the 75-second total deadline stops fallback immediately.
+- Why: external AI calls are the highest-variance part of the pipeline. Explicit nested budgets make worst-case latency predictable while preserving enough of the worker's two-minute deadline for the non-AI steps required to finish the message safely.
+
+### 2026-08-09 — Taxonomy mutation safeguards deliberately unchanged
+
+- Previous situation: new canonical categories are created automatically when the AI proposes a genuinely missing concept and sibling matching does not find an equivalent existing category.
+- Current situation: that behavior remains unchanged; no proposal/review queue, confidence gate, or manual approval layer was added.
+- Why: the current dynamic-taxonomy behavior is intentional for this stage and the user explicitly decided additional taxonomy-creation safeguards are unnecessary. Control quality through prompts, semantic sibling reuse, validation, regression examples, and the new created-vs-reused metrics rather than adding workflow complexity.
+
+### 2026-08-09 — Staging operational metrics
+
+- Previous situation: telemetry exposed HTTP metrics plus a generic worker count/duration. Failed and retryable messages were not cleanly separated, AI fallback/provider failures were invisible as metrics, and there were no domain signals for category creation/reuse or embedding failures.
+- Current situation: OpenTelemetry now records successful messages, failed messages, transient retry decisions, processing duration, AI provider failures, AI fallback transitions, category created/reused decisions for listing/profession flows, and embedding failures. Labels are intentionally low-cardinality.
+- Why: staging needs enough signal to answer whether the worker is healthy, why work is retrying, which AI providers are degrading, and whether taxonomy behavior is changing unexpectedly without relying on manual log inspection.
 
 ## Repository map
 
