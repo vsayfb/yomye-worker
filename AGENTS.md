@@ -384,6 +384,12 @@ The user has stated that this worker owns category-related schema design, while 
 - Current situation: shared runtime budgets live in `internal/runtimepolicy/timeouts.go`; both extraction modes use one fallback implementation while preserving their existing behavior/error contract; notification publishing uses one internal marshal/send helper; and the unused `gig_rejected` event/publisher surface is removed. Health/readiness comments also no longer assume a container orchestrator because staging runs under `systemd`.
 - Why: reduce accidental maintenance surface and prevent policy drift without changing active listing/profession processing semantics. The cleanup keeps domain behavior intact while making future operational changes less likely to become inconsistent across packages.
 
+### 2026-08-09 — Categorization golden regression evaluator added
+
+- Previous situation: the repository already had a large opt-in live AI benchmark corpus and the current prompt/provider/model combination had been selected after substantial manual experimentation, but there was no reviewed machine-readable baseline that could say whether a future prompt/model/taxonomy change altered the categorization behavior we currently consider good.
+- Current situation: keep the worker runtime, prompts, provider order, and extraction behavior unchanged. A separate opt-in `cmd/evaluate` command reuses `internal/extractor/example.txt`, reads the current `gig` taxonomy from PostgreSQL, and runs the existing category-path fallback logic. `make capture-ai-baseline` writes the current behavior to the intentionally untracked `testdata/evaluation/candidate.json`; that file must be reviewed and deliberately promoted to `testdata/evaluation/golden.json`. `make evaluate-ai` then compares live results with that approved baseline and exits non-zero on drift. The comparison intentionally checks source locale, the full canonical-slug path, and every node's `is_selectable` flag while ignoring generated prose and which provider/model won the fallback chain. The evaluator performs read-only taxonomy access and does not publish SQS messages or mutate marketplace data.
+- Why: the current AI behavior is an asset we want to protect, not casually retune. A reviewed golden baseline turns the user's existing model/prompt experimentation into a regression contract without making nondeterministic, quota-consuming live AI calls part of ordinary `go test`. Ignoring prose/provider identity avoids false regressions when the business categorization decision is unchanged, while exact canonical path/selectability/locale comparison still catches changes that matter to the marketplace. Never refresh or overwrite the golden baseline automatically after a failure; baseline changes require deliberate review because otherwise the evaluator would simply bless regressions.
+
 ## Repository map
 
 - `cmd/worker/`: dependency wiring and message-type dispatch.
@@ -392,6 +398,9 @@ The user has stated that this worker owns category-related schema design, while 
 - `internal/processor/profession.go`: user service/profession pipeline and stale-request protection.
 - `internal/processor/repository.go`: PostgreSQL contracts and invariant-enforcing SQL.
 - `internal/extractor/`: provider clients, response decoding, provider fallback, AI benchmark.
+- `internal/evaluation/`: golden categorization baseline schema and regression comparison.
+- `cmd/evaluate/`: opt-in live categorization regression runner; never part of worker startup.
+- `testdata/evaluation/`: reviewed golden baseline documentation/data.
 - `internal/prompter/`: embedded prompts and builders.
 - `internal/notification/`: emitted event types and SQS publisher.
 - `internal/runtimepolicy/`: shared processing, visibility, AI fallback, and shutdown time budgets.
@@ -423,6 +432,7 @@ git diff --check
 
 - Run `go test -race` for concurrency/worker changes when practical.
 - Live AI/database benchmark tests are intentionally opt-in and may take many minutes or consume provider quota. Do not run them casually. The benchmark is designed to process all examples and persist results for inspection when explicitly requested.
+- Live categorization evaluation is also opt-in. Treat `testdata/evaluation/golden.json` as an approved behavior contract: capture candidates separately, review them, and never auto-update the golden baseline merely to make a regression pass.
 - Never claim a production integration is verified merely because unit tests pass; clearly distinguish unit tests, local Docker/LocalStack checks, live provider tests, and real shared-database tests.
 
 ## How to reason about future changes
