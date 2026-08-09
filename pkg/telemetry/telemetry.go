@@ -16,11 +16,13 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	apptracing "github.com/vsayfb/gig-platform-categorization-service/pkg/tracing"
 )
 
 type Shutdown func(context.Context) error
 
-func Init(ctx context.Context, serviceName, collectorAddr string) (Shutdown, error) {
+func Init(ctx context.Context, serviceName, environment, collectorAddr string) (Shutdown, error) {
 	conn, err := grpc.NewClient(
 		collectorAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -49,7 +51,7 @@ func Init(ctx context.Context, serviceName, collectorAddr string) (Shutdown, err
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExporter),
 		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSampler(apptracing.SamplerForEnvironment(environment)),
 	)
 
 	otel.SetTracerProvider(tp)
@@ -73,7 +75,12 @@ func Init(ctx context.Context, serviceName, collectorAddr string) (Shutdown, err
 
 	otel.SetMeterProvider(mp)
 
-	slog.Info("telemetry initialized", "service", serviceName, "collector", collectorAddr)
+	slog.Info(
+		"telemetry initialized",
+		"service", serviceName,
+		"environment", environment,
+		"collector", collectorAddr,
+	)
 
 	shutdown := func(ctx context.Context) error {
 		var errs []error

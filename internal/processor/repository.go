@@ -55,7 +55,6 @@ type Repository interface {
 	AttachCategory(ctx context.Context, listingID, categoryID, baseCategoryID uuid.UUID) error
 	AttachUserCategory(ctx context.Context, userID, categoryID uuid.UUID) error
 	UpsertGigDetails(ctx context.Context, listingID uuid.UUID, details *extractor.ExtractedGigDetails, expiresAt *time.Time) error
-	UpsertSaleDetails(ctx context.Context, listingID uuid.UUID, details *extractor.ExtractedSaleDetails, expiresAt *time.Time) error
 	OpenListing(ctx context.Context, listingID uuid.UUID) error
 	GetCurrentProfessionRequest(context.Context, uuid.UUID) (uuid.UUID, bool, error)
 	LockCurrentProfessionRequest(context.Context, uuid.UUID) (uuid.UUID, bool, error)
@@ -208,11 +207,10 @@ func (r *repository) LockListing(ctx context.Context, listingID uuid.UUID) (*Lis
 		err = dbtx.Extract(ctx, r.db).QueryRow(ctx, `
 			SELECT c.id, c.parent_id, c.canonical_name, c.canonical_slug, c.canonical_description,
 			       c.is_selectable, c.is_active, c.depth, c.created_at,
-			       COALESCE(gd.title, sd.title)
+			       gd.title
 			FROM listing_categories lc
 			JOIN categories c ON c.id = lc.category_id
-			LEFT JOIN gig_details gd ON gd.gig_id = lc.listing_id
-			LEFT JOIN sale_details sd ON sd.listing_id = lc.listing_id
+			JOIN gig_details gd ON gd.gig_id = lc.listing_id
 			WHERE lc.listing_id = $1
 			  AND lc.base_category_id = c.base_category_id
 			ORDER BY c.created_at
@@ -552,33 +550,6 @@ func (r *repository) UpsertGigDetails(
 			expires_at = EXCLUDED.expires_at,
 			updated_at = NOW()
 	`, listingID, d.Title, d.DurationType, d.PayAmount, d.PayCurrency, expiresAt)
-	return err
-}
-
-func (r *repository) UpsertSaleDetails(
-	ctx context.Context,
-	listingID uuid.UUID,
-	d *extractor.ExtractedSaleDetails,
-	expiresAt *time.Time,
-) error {
-	_, err := dbtx.Extract(ctx, r.db).Exec(ctx, `
-		INSERT INTO sale_details (
-			listing_id, title, price_amount, price_currency, pricing_type,
-			condition, brand, model, expires_at
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (listing_id) DO UPDATE SET
-			title = EXCLUDED.title,
-			price_amount = EXCLUDED.price_amount,
-			price_currency = EXCLUDED.price_currency,
-			pricing_type = EXCLUDED.pricing_type,
-			condition = EXCLUDED.condition,
-			brand = EXCLUDED.brand,
-			model = EXCLUDED.model,
-			expires_at = EXCLUDED.expires_at,
-			updated_at = NOW()
-	`, listingID, d.Title, d.PriceAmount, d.PriceCurrency, d.PricingType,
-		d.Condition, d.Brand, d.Model, expiresAt)
 	return err
 }
 

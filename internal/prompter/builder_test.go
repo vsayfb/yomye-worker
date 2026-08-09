@@ -6,7 +6,7 @@ import (
 )
 
 func TestCategoryPathPromptUsesCanonicalEnglishAndLocalizedMetadata(t *testing.T) {
-	prompt := CategoryPathPrompt("gig", "- Lawyer: Legal professional [selectable=true]")
+	prompt := CategoryPathPrompt("- Lawyer: Legal professional [selectable=true]")
 
 	for _, required := range []string{
 		"canonical_name",
@@ -29,7 +29,7 @@ func TestCategoryPathPromptUsesCanonicalEnglishAndLocalizedMetadata(t *testing.T
 }
 
 func TestCategoryPathPromptKeepsServiceCategoriesProviderNeutral(t *testing.T) {
-	prompt := CategoryPathPrompt("gig", "")
+	prompt := CategoryPathPrompt("")
 
 	for _, required := range []string{
 		"individuals, tradespeople, teams, shops, or small businesses",

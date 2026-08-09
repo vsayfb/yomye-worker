@@ -37,18 +37,6 @@ func (g *GeminiExtractor) client(ctx context.Context) (*genai.Client, error) {
 	return client, nil
 }
 
-func (g *GeminiExtractor) Classify(ctx context.Context, description string) (string, error) {
-	client, err := g.client(ctx)
-	if err != nil {
-		return "", err
-	}
-	rawCategory, err := g.generate(ctx, client, prompter.BaseCategoryPrompt(), description)
-	if err != nil {
-		return "", fmt.Errorf("classify base category: %w", err)
-	}
-	return decodeBaseCategory(rawCategory)
-}
-
 func (g *GeminiExtractor) Extract(
 	ctx context.Context,
 	description, baseCategorySlug, catalog string,
@@ -62,12 +50,7 @@ func (g *GeminiExtractor) Extract(
 		return nil, err
 	}
 
-	detailsPrompt := prompter.GigPrompt()
-	if baseCategorySlug == "for-sale" {
-		detailsPrompt = prompter.SalePrompt()
-	}
-
-	rawDetails, err := g.generate(ctx, client, detailsPrompt, description)
+	rawDetails, err := g.generate(ctx, client, prompter.GigPrompt(), description)
 	if err != nil {
 		return nil, fmt.Errorf("extract %s details: %w", baseCategorySlug, err)
 	}
@@ -100,7 +83,7 @@ func (g *GeminiExtractor) extractCategoryPath(
 	rawPath, err := g.generate(
 		ctx,
 		client,
-		prompter.CategoryPathPrompt(baseCategorySlug, catalog),
+		prompter.CategoryPathPrompt(catalog),
 		description,
 	)
 	if err != nil {

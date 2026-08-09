@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func InitTracer(ctx context.Context, serviceName, collectorAddr string) (func(context.Context) error, error) {
+func InitTracer(ctx context.Context, serviceName, environment, collectorAddr string) (func(context.Context) error, error) {
 	conn, err := grpc.NewClient(
 		collectorAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -43,7 +43,7 @@ func InitTracer(ctx context.Context, serviceName, collectorAddr string) (func(co
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSampler(SamplerForEnvironment(environment)),
 	)
 
 	otel.SetTracerProvider(tp)

@@ -22,8 +22,8 @@ func TestListingApprovedEnvelopeJSONContract(t *testing.T) {
 		Payload: ListingApprovedEvent{
 			RecipientID:      recipientID,
 			ListingID:        listingID,
-			BaseCategorySlug: "for-sale",
-			Title:            "Az Kullanılmış Bisiklet",
+			BaseCategorySlug: "gig",
+			Title:            "Logo Designer",
 			OccurredAt:       occurredAt,
 		},
 	})
@@ -31,7 +31,7 @@ func TestListingApprovedEnvelopeJSONContract(t *testing.T) {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
 
-	want := `{"type":"listing_approved","event_id":"e7fdf1ea-00c7-50dd-8551-770a82dfc59a","version":1,"payload":{"recipient_id":"11111111-1111-1111-1111-111111111111","listing_id":"22222222-2222-2222-2222-222222222222","base_category_slug":"for-sale","title":"Az Kullanılmış Bisiklet","occurred_at":"2026-07-25T12:30:00Z"}}`
+	want := `{"type":"listing_approved","event_id":"e7fdf1ea-00c7-50dd-8551-770a82dfc59a","version":1,"payload":{"recipient_id":"11111111-1111-1111-1111-111111111111","listing_id":"22222222-2222-2222-2222-222222222222","base_category_slug":"gig","title":"Logo Designer","occurred_at":"2026-07-25T12:30:00Z"}}`
 	if string(body) != want {
 		t.Fatalf("JSON contract mismatch\n got: %s\nwant: %s", body, want)
 	}

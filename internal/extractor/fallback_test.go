@@ -12,7 +12,6 @@ type fallbackTestExtractor struct {
 	generator             string
 	extractFn             func(context.Context) (*ExtractedListing, error)
 	extractCategoryPathFn func(context.Context) (*ExtractedListing, error)
-	classifyFn            func(context.Context) (string, error)
 }
 
 func (f *fallbackTestExtractor) Generator() string { return f.generator }
@@ -32,13 +31,6 @@ func (f *fallbackTestExtractor) ExtractCategoryPath(
 		return f.extractCategoryPathFn(ctx)
 	}
 	return f.extractFn(ctx)
-}
-
-func (f *fallbackTestExtractor) Classify(ctx context.Context, _ string) (string, error) {
-	if f.classifyFn == nil {
-		return "", errors.New("classify not configured")
-	}
-	return f.classifyFn(ctx)
 }
 
 func TestFallbackExtractor_DefaultBudgetsFitWorkerDeadline(t *testing.T) {

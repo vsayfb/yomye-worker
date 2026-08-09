@@ -17,16 +17,6 @@ type ExtractedGigDetails struct {
 	PayCurrency  string   `json:"pay_currency"`
 }
 
-type ExtractedSaleDetails struct {
-	Title         string   `json:"title"`
-	PriceAmount   *float64 `json:"price_amount"`
-	PriceCurrency *string  `json:"price_currency"`
-	PricingType   string   `json:"pricing_type"`
-	Condition     *string  `json:"condition"`
-	Brand         *string  `json:"brand"`
-	Model         *string  `json:"model"`
-}
-
 type ExtractedCategoryNode struct {
 	CanonicalName        string `json:"canonical_name"`
 	CanonicalSlug        string `json:"canonical_slug"`
@@ -43,13 +33,8 @@ type ExtractedListing struct {
 	SourceLocale     string                  `json:"source_locale"`
 	CategoryPath     []ExtractedCategoryNode `json:"category_path"`
 	Gig              *ExtractedGigDetails    `json:"gig"`
-	Sale             *ExtractedSaleDetails   `json:"sale"`
 	ExpiresAt        *time.Time              `json:"expires_at"`
 	GeneratedBy      string                  `json:"-"`
-}
-
-type baseCategoryResult struct {
-	BaseCategorySlug string `json:"base_category_slug"`
 }
 
 type categoryPathResult struct {
@@ -60,24 +45,6 @@ type categoryPathResult struct {
 type gigResult struct {
 	ExpiresAt *time.Time `json:"expires_at"`
 	ExtractedGigDetails
-}
-
-type saleResult struct {
-	ExpiresAt *time.Time `json:"expires_at"`
-	ExtractedSaleDetails
-}
-
-func decodeBaseCategory(raw string) (string, error) {
-	var result baseCategoryResult
-	if err := decodeJSONObject(raw, &result); err != nil {
-		return "", fmt.Errorf("decode base category: %w", err)
-	}
-	switch result.BaseCategorySlug {
-	case "gig", "for-sale":
-		return result.BaseCategorySlug, nil
-	default:
-		return "", fmt.Errorf("unsupported base category %q", result.BaseCategorySlug)
-	}
 }
 
 func decodeCategoryPath(raw string) (string, []ExtractedCategoryNode, error) {
@@ -116,29 +83,21 @@ func decodeDetails(
 	categoryPath []ExtractedCategoryNode,
 	raw string,
 ) (*ExtractedListing, error) {
+	if baseCategorySlug != "gig" {
+		return nil, fmt.Errorf("unsupported base category %q", baseCategorySlug)
+	}
+
 	listing := &ExtractedListing{
 		BaseCategorySlug: baseCategorySlug,
 		CategoryPath:     categoryPath,
 	}
 
-	switch baseCategorySlug {
-	case "gig":
-		var result gigResult
-		if err := decodeJSONObject(raw, &result); err != nil {
-			return nil, fmt.Errorf("decode gig details: %w", err)
-		}
-		listing.Gig = &result.ExtractedGigDetails
-		listing.ExpiresAt = result.ExpiresAt
-	case "for-sale":
-		var result saleResult
-		if err := decodeJSONObject(raw, &result); err != nil {
-			return nil, fmt.Errorf("decode sale details: %w", err)
-		}
-		listing.Sale = &result.ExtractedSaleDetails
-		listing.ExpiresAt = result.ExpiresAt
-	default:
-		return nil, fmt.Errorf("unsupported base category %q", baseCategorySlug)
+	var result gigResult
+	if err := decodeJSONObject(raw, &result); err != nil {
+		return nil, fmt.Errorf("decode gig details: %w", err)
 	}
+	listing.Gig = &result.ExtractedGigDetails
+	listing.ExpiresAt = result.ExpiresAt
 
 	return listing, nil
 }
@@ -171,7 +130,6 @@ type EmbeddingClient interface {
 
 type Extractor interface {
 	Generator() string
-	Classify(ctx context.Context, description string) (string, error)
 	ExtractCategoryPath(ctx context.Context, description, baseCategorySlug, catalog string) (*ExtractedListing, error)
 	Extract(ctx context.Context, description, baseCategorySlug, catalog string) (*ExtractedListing, error)
 }

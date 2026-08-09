@@ -28,25 +28,6 @@ func validGigExtraction() *extractor.ExtractedListing {
 	}
 }
 
-func validSaleExtraction() *extractor.ExtractedListing {
-	price := 100.0
-	currency := "usd"
-	return &extractor.ExtractedListing{
-		BaseCategorySlug: BaseCategoryForSale,
-		SourceLocale:     "en",
-		GeneratedBy:      "test-model",
-		CategoryPath: []extractor.ExtractedCategoryNode{
-			testCategoryNode("Electronics", "Electronics", true),
-		},
-		Sale: &extractor.ExtractedSaleDetails{
-			Title:         "Used laptop",
-			PricingType:   "fixed",
-			PriceAmount:   &price,
-			PriceCurrency: &currency,
-		},
-	}
-}
-
 func TestValidateExtraction_NilExtraction(t *testing.T) {
 	if err := validateExtraction(nil); !errors.Is(err, ErrInvalidExtraction) {
 		t.Fatalf("expected ErrInvalidExtraction for nil extraction, got %v", err)
@@ -64,12 +45,6 @@ func TestValidateExtraction_ValidGig(t *testing.T) {
 	}
 	if extracted.Gig.PayCurrency != "USD" {
 		t.Errorf("expected currency to be normalized to uppercase, got %q", extracted.Gig.PayCurrency)
-	}
-}
-
-func TestValidateExtraction_RejectsSaleForGigOnlyLaunch(t *testing.T) {
-	if err := validateExtraction(validSaleExtraction()); !errors.Is(err, ErrInvalidExtraction) {
-		t.Fatalf("expected sale extraction to be rejected, got: %v", err)
 	}
 }
 
@@ -120,10 +95,8 @@ func TestValidateExtraction_GigTableDriven(t *testing.T) {
 			mutate: func(e *extractor.ExtractedListing) { e.BaseCategorySlug = "unknown" },
 		},
 		{
-			name: "gig extraction also carries sale details",
-			mutate: func(e *extractor.ExtractedListing) {
-				e.Sale = &extractor.ExtractedSaleDetails{Title: "x", PricingType: "fixed"}
-			},
+			name:   "missing gig details",
+			mutate: func(e *extractor.ExtractedListing) { e.Gig = nil },
 		},
 		{
 			name:   "gig missing title",
@@ -145,57 +118,6 @@ func TestValidateExtraction_GigTableDriven(t *testing.T) {
 
 			if err := validateExtraction(extracted); !errors.Is(err, ErrInvalidExtraction) && !errors.Is(err, ErrCategoryNotDetected) {
 				t.Fatalf("expected a validation error, got: %v", err)
-			}
-		})
-	}
-}
-
-func TestValidateExtraction_SaleTableDriven(t *testing.T) {
-	tests := []struct {
-		name   string
-		mutate func(*extractor.ExtractedListing)
-	}{
-		{
-			name:   "missing title",
-			mutate: func(e *extractor.ExtractedListing) { e.Sale.Title = "" },
-		},
-		{
-			name: "sale extraction also carries gig details",
-			mutate: func(e *extractor.ExtractedListing) {
-				e.Gig = &extractor.ExtractedGigDetails{Title: "x", Profession: "y"}
-			},
-		},
-		{
-			name:   "fixed pricing without an amount",
-			mutate: func(e *extractor.ExtractedListing) { e.Sale.PriceAmount = nil },
-		},
-		{
-			name: "free pricing with an amount set",
-			mutate: func(e *extractor.ExtractedListing) {
-				e.Sale.PricingType = "free"
-				// PriceAmount/PriceCurrency stay set from the valid fixture.
-			},
-		},
-		{
-			name:   "unknown pricing type",
-			mutate: func(e *extractor.ExtractedListing) { e.Sale.PricingType = "unknown" },
-		},
-		{
-			name: "unknown condition",
-			mutate: func(e *extractor.ExtractedListing) {
-				bad := "brand-new-still-in-box"
-				e.Sale.Condition = &bad
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			extracted := validSaleExtraction()
-			tt.mutate(extracted)
-
-			if err := validateExtraction(extracted); !errors.Is(err, ErrInvalidExtraction) {
-				t.Fatalf("expected ErrInvalidExtraction, got: %v", err)
 			}
 		})
 	}

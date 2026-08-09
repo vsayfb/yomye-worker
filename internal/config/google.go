@@ -1,7 +1,10 @@
 package config
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
-func loadGCP(ctx context.Context) (*Config, error) {
-	return nil, nil
+func loadGCP(context.Context) (*Config, error) {
+	return nil, errors.New("production configuration is not implemented")
 }

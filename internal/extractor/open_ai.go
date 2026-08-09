@@ -36,15 +36,6 @@ func (o *OpenAIExtractor) Generator() string {
 	return o.generatedBy
 }
 
-func (o *OpenAIExtractor) Classify(ctx context.Context, description string) (string, error) {
-	rawCategory, err := o.complete(ctx, prompter.BaseCategoryPrompt(), description)
-	if err != nil {
-		return "", fmt.Errorf("classify base category: %w", err)
-	}
-
-	return decodeBaseCategory(rawCategory)
-}
-
 func (o *OpenAIExtractor) Extract(
 	ctx context.Context,
 	description, baseCategorySlug, catalog string,
@@ -54,12 +45,7 @@ func (o *OpenAIExtractor) Extract(
 		return nil, err
 	}
 
-	detailsPrompt := prompter.GigPrompt()
-	if baseCategorySlug == "for-sale" {
-		detailsPrompt = prompter.SalePrompt()
-	}
-
-	rawDetails, err := o.complete(ctx, detailsPrompt, description)
+	rawDetails, err := o.complete(ctx, prompter.GigPrompt(), description)
 	if err != nil {
 		return nil, fmt.Errorf("extract %s details: %w", baseCategorySlug, err)
 	}
@@ -79,7 +65,7 @@ func (o *OpenAIExtractor) ExtractCategoryPath(
 ) (*ExtractedListing, error) {
 	rawPath, err := o.complete(
 		ctx,
-		prompter.CategoryPathPrompt(baseCategorySlug, catalog),
+		prompter.CategoryPathPrompt(catalog),
 		description,
 	)
 	if err != nil {

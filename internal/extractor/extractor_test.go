@@ -2,19 +2,7 @@ package extractor
 
 import "testing"
 
-func TestDecodeBaseCategory(t *testing.T) {
-	t.Parallel()
-
-	got, err := decodeBaseCategory(`{"base_category_slug":"gig"}`)
-	if err != nil {
-		t.Fatalf("decodeBaseCategory() error = %v", err)
-	}
-	if got != "gig" {
-		t.Fatalf("decodeBaseCategory() = %q, want gig", got)
-	}
-}
-
-func TestDecodeGigDetailsBuildsDiscriminatedListing(t *testing.T) {
+func TestDecodeGigDetailsBuildsListing(t *testing.T) {
 	t.Parallel()
 
 	path := []ExtractedCategoryNode{
@@ -32,7 +20,7 @@ func TestDecodeGigDetailsBuildsDiscriminatedListing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeDetails() error = %v", err)
 	}
-	if got.Gig == nil || got.Sale != nil {
+	if got.Gig == nil {
 		t.Fatalf("decodeDetails() returned invalid gig shape: %#v", got)
 	}
 	if len(got.CategoryPath) != 2 ||
@@ -42,33 +30,12 @@ func TestDecodeGigDetailsBuildsDiscriminatedListing(t *testing.T) {
 	}
 }
 
-func TestDecodeSaleDetailsBuildsDiscriminatedListing(t *testing.T) {
+func TestDecodeDetailsRejectsUnsupportedBaseCategory(t *testing.T) {
 	t.Parallel()
 
-	path := []ExtractedCategoryNode{
-		{CanonicalName: "Sports and Outdoors", CanonicalDescription: "Sports products"},
-		{CanonicalName: "Bicycle", CanonicalDescription: "Bicycles"},
-	}
-	got, err := decodeDetails("for-sale", path, `{
-		"title": "Az Kullanılmış Bisiklet",
-		"price_amount": null,
-		"price_currency": null,
-		"pricing_type": "contact",
-		"condition": "good",
-		"brand": null,
-		"model": null,
-		"expires_at": null
-	}`)
-	if err != nil {
-		t.Fatalf("decodeDetails() error = %v", err)
-	}
-	if got.Sale == nil || got.Gig != nil {
-		t.Fatalf("decodeDetails() returned invalid sale shape: %#v", got)
-	}
-	if len(got.CategoryPath) != 2 ||
-		got.CategoryPath[1].CanonicalName != "Bicycle" ||
-		got.Sale.PricingType != "contact" {
-		t.Fatalf("decodeDetails() = %#v", got)
+	_, err := decodeDetails("unknown", nil, `{}`)
+	if err == nil {
+		t.Fatal("expected unsupported base category to fail")
 	}
 }
 
@@ -122,11 +89,11 @@ func TestDecodeJSONObjectAcceptsWrappedJSON(t *testing.T) {
 	}{
 		{
 			name: "markdown fence",
-			raw:  "```json\n{\"base_category_slug\":\"gig\"}\n```",
+			raw:  "```json\n{\"value\":\"gig\"}\n```",
 		},
 		{
 			name: "leading explanation",
-			raw:  "Answer:\n{\"base_category_slug\":\"gig\"}",
+			raw:  "Answer:\n{\"value\":\"gig\"}",
 		},
 	}
 
@@ -134,12 +101,14 @@ func TestDecodeJSONObjectAcceptsWrappedJSON(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := decodeBaseCategory(tt.raw)
-			if err != nil {
-				t.Fatalf("decodeBaseCategory() error = %v", err)
+			var got struct {
+				Value string `json:"value"`
 			}
-			if got != "gig" {
-				t.Fatalf("decodeBaseCategory() = %q, want gig", got)
+			if err := decodeJSONObject(tt.raw, &got); err != nil {
+				t.Fatalf("decodeJSONObject() error = %v", err)
+			}
+			if got.Value != "gig" {
+				t.Fatalf("decoded value = %q, want gig", got.Value)
 			}
 		})
 	}

@@ -23,8 +23,7 @@ import (
 )
 
 const (
-	BaseCategoryGig     = "gig"
-	BaseCategoryForSale = "for-sale" // recognized legacy value; launch processors reject it
+	BaseCategoryGig = "gig"
 
 	listingStatusOpen       = "OPEN"
 	listingStatusProcessing = "PROCESSING"
@@ -706,7 +705,7 @@ func normalizeLocale(locale string) string {
 }
 
 func validateGigExtraction(extracted *extractor.ExtractedListing, leafName string) error {
-	if extracted.Gig == nil || extracted.Sale != nil {
+	if extracted.Gig == nil {
 		return fmt.Errorf("%w: gig details shape", ErrInvalidExtraction)
 	}
 
@@ -729,92 +728,12 @@ func normalizeGigDetails(extracted *extractor.ExtractedListing, profession strin
 	}
 }
 
-func validateSaleExtraction(extracted *extractor.ExtractedListing) error {
-	if extracted.Sale == nil || extracted.Gig != nil {
-		return fmt.Errorf("%w: sale details shape", ErrInvalidExtraction)
-	}
-
-	normalizeSaleStrings(extracted.Sale)
-	if extracted.Sale.Title == "" {
-		return fmt.Errorf("%w: missing sale title", ErrInvalidExtraction)
-	}
-	if err := validateSalePricing(extracted.Sale); err != nil {
-		return err
-	}
-	return validateSaleCondition(extracted.Sale.Condition)
-}
-
-func validateSalePricing(sale *extractor.ExtractedSaleDetails) error {
-	switch sale.PricingType {
-	case "fixed", "negotiable":
-		if !hasPositiveSalePrice(sale) {
-			return fmt.Errorf(
-				"%w: priced sale requires positive amount and currency",
-				ErrInvalidExtraction,
-			)
-		}
-	case "free", "contact":
-		if sale.PriceAmount != nil || sale.PriceCurrency != nil {
-			return fmt.Errorf("%w: free/contact sale cannot contain price", ErrInvalidExtraction)
-		}
-	default:
-		return fmt.Errorf("%w: unknown pricing type %q", ErrInvalidExtraction, sale.PricingType)
-	}
-	return nil
-}
-
-func hasPositiveSalePrice(sale *extractor.ExtractedSaleDetails) bool {
-	return sale.PriceAmount != nil &&
-		*sale.PriceAmount > 0 &&
-		sale.PriceCurrency != nil &&
-		*sale.PriceCurrency != ""
-}
-
-func validateSaleCondition(condition *string) error {
-	if condition == nil {
-		return nil
-	}
-
-	switch *condition {
-	case "new", "like_new", "good", "fair", "poor":
-		return nil
-	default:
-		return fmt.Errorf("%w: unknown sale condition %q", ErrInvalidExtraction, *condition)
-	}
-}
-
-func normalizeSaleStrings(sale *extractor.ExtractedSaleDetails) {
-	sale.Title = strings.TrimSpace(sale.Title)
-	sale.PricingType = strings.ToLower(strings.TrimSpace(sale.PricingType))
-	normalizeOptionalString(&sale.PriceCurrency, strings.ToUpper)
-	normalizeOptionalString(&sale.Condition, strings.ToLower)
-	normalizeOptionalString(&sale.Brand, identityString)
-	normalizeOptionalString(&sale.Model, identityString)
-}
-
-func normalizeOptionalString(value **string, transform func(string) string) {
-	if *value == nil {
-		return
-	}
-
-	normalized := transform(strings.TrimSpace(**value))
-	if normalized == "" {
-		*value = nil
-		return
-	}
-	*value = &normalized
-}
-
-func identityString(value string) string {
-	return value
-}
-
 func extractedTitle(extracted *extractor.ExtractedListing) string {
+	if extracted == nil {
+		return ""
+	}
 	if extracted.Gig != nil {
 		return extracted.Gig.Title
-	}
-	if extracted.Sale != nil {
-		return extracted.Sale.Title
 	}
 	return ""
 }

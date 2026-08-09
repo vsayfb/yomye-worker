@@ -39,7 +39,7 @@ func TestValidateProfessionExtraction_TableDriven(t *testing.T) {
 	}{
 		{
 			name:   "wrong base category",
-			mutate: func(e *extractor.ExtractedListing) { e.BaseCategorySlug = BaseCategoryForSale },
+			mutate: func(e *extractor.ExtractedListing) { e.BaseCategorySlug = "unexpected" },
 		},
 		{
 			name:   "missing generator provenance",

@@ -169,7 +169,6 @@ func (e *e2eEnv) seedListing(t *testing.T, ctx context.Context, description stri
 		for _, stmt := range []string{
 			`DELETE FROM listing_categories WHERE listing_id = $1`,
 			`DELETE FROM gig_details WHERE gig_id = $1`,
-			`DELETE FROM sale_details WHERE listing_id = $1`,
 			`DELETE FROM listings WHERE id = $1`,
 		} {
 			if _, err := e.db.Exec(cleanupCtx, stmt, id); err != nil {

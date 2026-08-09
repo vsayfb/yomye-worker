@@ -22,7 +22,7 @@ The application is still in development. The user is willing to recreate the dat
 - Launch is gig/service-only.
 - The static base category slug is `gig`.
 - Resolve its UUID from `base_categories` by active slug. Never hard-code a base-category UUID.
-- `for-sale` types and some legacy code may remain, but do not add or process for-sale categories unless the user explicitly reopens that feature.
+- The legacy `for-sale` classifier, prompts, extraction types, validation, and repository write path have been removed. Do not reintroduce multi-family listing behavior unless the user explicitly reopens that feature.
 - Exactly one category is assigned per listing.
 - Exactly one offered service/profession is assigned per user.
 - Assign only the final active, selectable category—not its ancestors.
@@ -99,10 +99,8 @@ Categories describe the offered/requested service, trade, or occupation—not th
 
 Embedded prompts live in `internal/prompter/prompts/`:
 
-- `base_category.txt`: legacy base-family classification prompt.
 - `category_path.txt`: source locale detection plus canonical English hierarchy and source-locale metadata.
 - `profession.txt`: structured gig/service details.
-- `sale.txt`: retained legacy sale extraction prompt; not launch scope.
 
 `internal/prompter/loader.go` embeds the prompt files. `builder.go` injects the current active canonical catalog into the category-path prompt.
 
@@ -145,6 +143,8 @@ The staging-critical metric set is:
 - `categorization.embedding.failures_total`: embedding failures labeled by listing/profession workflow.
 
 Metric attributes must stay low-cardinality. Do not add listing IDs, user IDs, request IDs, descriptions, category UUIDs, or arbitrary error strings as metric labels. Those belong in logs/traces.
+
+Tracing sampling is environment-aware. Development samples every trace for local debugging. Staging and production use parent-based 10% root sampling so upstream sampling decisions are honored and steady-state trace volume stays bounded. Do not restore unconditional `AlwaysSample()` in deployed environments without an explicit temporary debugging reason.
 
 ## Listing processing contract
 
@@ -340,6 +340,24 @@ The user has stated that this worker owns category-related schema design, while 
 - Previous situation: the application already stopped receiving on SIGTERM and allowed in-flight messages up to their two-minute processing deadline before running up to 10 seconds of HTTP/telemetry/resource cleanup, but the repository did not define the corresponding `systemd` stop budget. A unit with a shorter `TimeoutStopSec` could therefore force-kill the process before that graceful drain completed.
 - Current situation: the two-minute message processing deadline is preserved, application cleanup has an explicit 10-second budget, and `deploy/systemd/10-graceful-stop.conf` sets `KillSignal=SIGTERM` and `TimeoutStopSec=135s`. The drop-in is intended to be installed for the actual worker unit used in staging.
 - Why: 135 seconds covers the worst-case 120 seconds of remaining in-flight work plus 10 seconds of application cleanup with a 5-second margin. This keeps the service-manager timeout aligned with the application's existing graceful-shutdown behavior without shortening valid message processing.
+
+### 2026-08-09 — Production configuration fails explicitly until implemented
+
+- Previous situation: `APP_ENV=production` called `loadGCP()`, which returned `(nil, nil)`. An accidental production-mode start therefore looked like successful configuration loading and failed later with an unrelated nil/configuration error.
+- Current situation: the production configuration path returns an explicit `production configuration is not implemented` error. Staging remains the active AWS deployment target and no GCP configuration has been added.
+- Why: an intentionally unfinished deployment target should fail immediately and clearly rather than masquerading as valid configuration. This preserves the staging-first plan without adding premature GCP work.
+
+### 2026-08-09 — Environment-aware trace sampling
+
+- Previous situation: OpenTelemetry used `AlwaysSample()` unconditionally, so every deployed message trace was exported regardless of environment or upstream sampling decisions.
+- Current situation: development still samples 100% of traces; staging and production use parent-based 10% root sampling and honor parent sampling decisions. The active telemetry initializer and the standalone tracer helper use the same sampler policy.
+- Why: retain full local debugging visibility while bounding collector/storage volume in deployed environments. Parent-based sampling also keeps distributed traces coherent when an upstream service has already made the sampling decision.
+
+### 2026-08-09 — Legacy for-sale path removed
+
+- Previous situation: launch behavior was already gig-only, but the repository still carried an unused base-family classifier, `for-sale`/sale prompts, sale extraction structures and validation, a `sale_details` repository writer, sale-aware open-listing reload logic, and tests for that inactive path.
+- Current situation: the worker contains only the gig/service extraction path. Base-family classification and sale-specific prompts/types/validation/persistence code are removed; reloading an `OPEN` listing reads its title from `gig_details` only. Tests now cover the active gig-only contract rather than preserving dead sale behavior.
+- Why: dead multi-family code made the supported domain look broader than it is, increased maintenance surface, and could accidentally be revived without a deliberate product decision. If product-sale support returns, it should be designed against current requirements rather than inherited from stale partial implementation.
 
 ## Repository map
 

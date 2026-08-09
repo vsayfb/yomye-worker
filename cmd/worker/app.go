@@ -66,6 +66,7 @@ func initTelemetryWithRetry(
 		shutdownTelemetry, err := telemetry.Init(
 			ctx,
 			cfg.App.ServiceName,
+			cfg.App.Env,
 			cfg.Server.OTelCollectorAddr,
 		)
 

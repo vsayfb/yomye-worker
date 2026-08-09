@@ -27,7 +27,6 @@ type fakeRepository struct {
 	attachCategoryFn               func(ctx context.Context, listingID, categoryID, baseCategoryID uuid.UUID) error
 	attachUserCategoryFn           func(ctx context.Context, userID, categoryID uuid.UUID) error
 	upsertGigDetailsFn             func(ctx context.Context, listingID uuid.UUID, details *extractor.ExtractedGigDetails, expiresAt *time.Time) error
-	upsertSaleDetailsFn            func(ctx context.Context, listingID uuid.UUID, details *extractor.ExtractedSaleDetails, expiresAt *time.Time) error
 	openListingFn                  func(ctx context.Context, listingID uuid.UUID) error
 	getCurrentProfessionRequestFn  func(ctx context.Context, userID uuid.UUID) (uuid.UUID, bool, error)
 	lockCurrentProfessionRequestFn func(ctx context.Context, userID uuid.UUID) (uuid.UUID, bool, error)
@@ -93,10 +92,6 @@ func (f *fakeRepository) UpsertGigDetails(ctx context.Context, listingID uuid.UU
 	return f.upsertGigDetailsFn(ctx, listingID, details, expiresAt)
 }
 
-func (f *fakeRepository) UpsertSaleDetails(ctx context.Context, listingID uuid.UUID, details *extractor.ExtractedSaleDetails, expiresAt *time.Time) error {
-	return f.upsertSaleDetailsFn(ctx, listingID, details, expiresAt)
-}
-
 func (f *fakeRepository) OpenListing(ctx context.Context, listingID uuid.UUID) error {
 	return f.openListingFn(ctx, listingID)
 }
@@ -122,7 +117,6 @@ func (f *fakeRepository) UpsertUserProfessionCategory(ctx context.Context, userI
 // network access.
 type fakeExtractor struct {
 	generator           string
-	classify            func(ctx context.Context, description string) (string, error)
 	extract             func(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error)
 	extractCategoryPath func(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error)
 }
@@ -132,10 +126,6 @@ func (f *fakeExtractor) Generator() string {
 		return f.generator
 	}
 	return "fake"
-}
-
-func (f *fakeExtractor) Classify(ctx context.Context, description string) (string, error) {
-	return f.classify(ctx, description)
 }
 
 func (f *fakeExtractor) Extract(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error) {
