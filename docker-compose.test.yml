@@ -1,0 +1,35 @@
+services:
+  postgres-test:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: gigpf_test
+      POSTGRES_PASSWORD: gigpf_test
+      POSTGRES_DB: gigpf_test
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+      - ./testdata/postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gigpf_test -d gigpf_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  localstack-test:
+    image: localstack/localstack:4
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "127.0.0.1:4567:4566"
+    volumes:
+      - ./docker/localstack/e2e/init-sqs.sh:/etc/localstack/init/ready.d/10-init-sqs.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal sqs list-queues >/dev/null 2>&1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-test-data:

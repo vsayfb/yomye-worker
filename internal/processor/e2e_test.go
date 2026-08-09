@@ -1,34 +1,22 @@
 package processor
 
-// These tests exercise the real pipeline end to end: a real Postgres
-// database, a real (configured) AI extraction provider, a real local
-// embeddings endpoint, and a real/LocalStack SQS queue for notifications.
-// They do NOT run as part of a normal `go test ./...` - set RUN_E2E_TESTS=1
-// and point the usual DB_*/AWS_*/AI_* env vars (a real .env file, the same
-// shape config.Load() already reads) at a database that has the FULL
-// platform schema applied - not just this repo's two category-tree
-// migrations under /migrations.
+// These tests exercise the processor pipeline end to end: a disposable
+// pgvector/Postgres database, a configured live AI extraction provider, a
+// local Ollama embeddings endpoint, and a disposable LocalStack SQS queue.
+// They do NOT run as part of a normal `go test ./...`.
 //
-// Tables/functions this package's own queries assume exist, beyond what
-// /migrations creates here (owned by another service, not this repo):
-//   - base_categories(id, slug, is_active) with an active 'gig' row
-//   - categories with canonical_name, canonical_slug, canonical_description,
-//     hierarchy, embedding, generated_by, and is_selectable
-//   - category_localizations(category_id, locale, name, slug, description,
-//     generated_by), unique(category_id, locale)
-//   - listings(id, status, base_category_id, description_clean, ...)
-//   - listing_categories(listing_id, category_id, base_category_id), unique(listing_id, category_id)
-//   - gig_details(gig_id unique, title, duration_type, pay_amount, pay_currency, expires_at)
-//   - users(id, profession_request_id)
-//   - user_categories(user_id unique, category_id)
+// `make test-e2e` is the safe default. It starts docker-compose.test.yml,
+// overrides DB/SQS values from .env with isolated local endpoints, executes
+// the suite, and removes the containers/volumes even when the test fails.
+// The test-only final schema is in testdata/postgres/init.sql; production
+// migrations are intentionally not changed or reused to synthesize tables
+// owned by other platform services.
 //
-// The seed helpers below intentionally only set the columns gig.go /
-// profession.go themselves read or write. If your real tables have other
-// NOT NULL columns, the INSERTs will fail with a plain Postgres error -
-// extend seedListing/seedUser/seedBaseCategories rather than guess further.
+// .env is still required for at least one real AI provider. Ollama defaults
+// to http://127.0.0.1:11434 for E2E; set E2E_OLLAMA_ENDPOINT to override it.
 //
-// Run with: make test-e2e (see Makefile), or manually:
-//   set -a; . ./.env; set +a; RUN_E2E_TESTS=1 go test ./internal/processor/... -run E2E -v
+// `make test-e2e-external` is an explicit escape hatch for intentionally
+// testing against a fully migrated external/shared database and SQS setup.
 
 import (
 	"context"
