@@ -19,7 +19,6 @@ const (
 	CurrentEventVersion = 1
 
 	EventListingApproved    NotificationEventType = "listing_approved"
-	EventGigRejected        NotificationEventType = "gig_rejected"
 	EventGigCategoryMatched NotificationEventType = "gig_category_matched"
 )
 
@@ -36,19 +35,6 @@ type ListingApprovedEvent struct {
 	BaseCategorySlug string    `json:"base_category_slug"`
 	Title            string    `json:"title"`
 	OccurredAt       time.Time `json:"occurred_at"`
-}
-
-type RejectedEnvelope struct {
-	Type    NotificationEventType           `json:"type"`
-	EventID uuid.UUID                       `json:"event_id"`
-	Version int                             `json:"version"`
-	Payload NewGigRejectedNotificationEvent `json:"payload"`
-}
-
-type NewGigRejectedNotificationEvent struct {
-	RecipientID string    `json:"recipient_id"`
-	GigID       string    `json:"gig_id"`
-	OccurredAt  time.Time `json:"occurred_at"`
 }
 
 type GigCategoryMatchedEvent struct {

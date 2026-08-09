@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vsayfb/gig-platform-categorization-service/internal/runtimepolicy"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/worker"
 )
 
@@ -33,16 +34,16 @@ func main() {
 
 	healthMux := http.NewServeMux()
 
-	// Liveness: the process is up and able to serve HTTP. This should stay
-	// cheap and dependency-free so a slow/degraded dependency doesn't get
-	// the whole pod killed and restarted in a loop.
+	// Liveness: the process is up and able to serve HTTP. Keep this cheap and
+	// dependency-free so monitoring or a service supervisor can distinguish a
+	// live process from dependency degradation.
 	healthMux.HandleFunc("/health", func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
 	})
 
 	// Readiness: dependencies (currently the database) are actually usable.
-	// An orchestrator should stop routing/considering this instance ready
-	// while this fails, without necessarily restarting it.
+	// This is intentionally separate from liveness so dependency degradation
+	// can be observed without implying that the process itself is dead.
 	healthMux.HandleFunc("/ready", func(rw http.ResponseWriter, r *http.Request) {
 		readyCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
@@ -78,7 +79,7 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(
 		context.Background(),
-		10*time.Second,
+		runtimepolicy.ApplicationShutdownTimeout,
 	)
 
 	defer cancel()

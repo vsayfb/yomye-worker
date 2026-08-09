@@ -104,55 +104,44 @@ func loadAWS(ctx context.Context) (*Config, error) {
 			NotificationEventsQueue:   params[ParameterSQSNotificationEventsQueueURL],
 		},
 
-		AI: AI{
-
-			Groq: AIConfig{
-				APIKey:  params[ParameterGroqAPIKey],
-				BaseURL: params[ParameterGroqEndpoint],
-				Model:   params[ParameterGroqModel],
-			},
-			OpenRouter: AIConfig{
-				APIKey:  params[ParameterOpenRouterAPIKey],
-				BaseURL: params[ParameterOpenRouterEndpoint],
-				Model:   params[ParameterOpenRouterModel],
-			},
-			Gemini: AIConfig{
-				APIKey: params[ParameterGeminiAPIKey],
-				Model:  params[ParameterGeminiModel],
-			},
-			Nvidia: AIConfig{
-				APIKey:  params[ParameterNvidiaAPIKey],
-				BaseURL: params[ParameterNvidiaEndpoint],
-				Model:   params[ParameterNvidiaModel],
-			},
-
-			HuggingFaceAIModel:  getEnv(EnvHuggingFaceAIModel, DefaultHuggingFaceAIModel),
-			LocalOllamaEndpoint: getEnv(EnvLocalOllamaEndpoint, DefaultLocalOllamaEndpoint),
-			PromptFile:          getEnv(EnvPromptFilePath, DefaultPromptFilePath),
-		},
+		AI: aiConfigFromParameters(params),
 	}, nil
 }
 
-func loadParameters(ctx context.Context, client *ssm.Client) (map[string]string, error) {
-	names := []string{
-		ssmParameter(ParameterDBHost),
-		ssmParameter(ParameterDBPort),
-		ssmParameter(ParameterDBName),
-		ssmParameter(ParameterRDSSecretArn),
-		ssmParameter(ParameterSQSCategoryEventsQueueURL),
-		ssmParameter(ParameterSQSNotificationEventsQueueURL),
-		ssmParameter(ParameterGroqAPIKey),
-		ssmParameter(ParameterGroqEndpoint),
-		ssmParameter(ParameterGroqModel),
-		ssmParameter(ParameterOpenRouterAPIKey),
-		ssmParameter(ParameterOpenRouterEndpoint),
-		ssmParameter(ParameterOpenRouterModel),
-		ssmParameter(ParameterGeminiAPIKey),
-		ssmParameter(ParameterGeminiModel),
-		ssmParameter(ParameterMistralAPIKey),
-		ssmParameter(ParameterMistralModel),
-		ssmParameter(ParameterMistralBaseURL),
+func aiConfigFromParameters(params map[string]string) AI {
+	return AI{
+		Groq: AIConfig{
+			APIKey:  params[ParameterGroqAPIKey],
+			BaseURL: params[ParameterGroqEndpoint],
+			Model:   params[ParameterGroqModel],
+		},
+		OpenRouter: AIConfig{
+			APIKey:  params[ParameterOpenRouterAPIKey],
+			BaseURL: params[ParameterOpenRouterEndpoint],
+			Model:   params[ParameterOpenRouterModel],
+		},
+		Gemini: AIConfig{
+			APIKey: params[ParameterGeminiAPIKey],
+			Model:  params[ParameterGeminiModel],
+		},
+		Mistral: AIConfig{
+			APIKey:  params[ParameterMistralAPIKey],
+			BaseURL: params[ParameterMistralBaseURL],
+			Model:   params[ParameterMistralModel],
+		},
+		Nvidia: AIConfig{
+			APIKey:  params[ParameterNvidiaAPIKey],
+			BaseURL: params[ParameterNvidiaEndpoint],
+			Model:   params[ParameterNvidiaModel],
+		},
+		HuggingFaceAIModel:  getEnv(EnvHuggingFaceAIModel, DefaultHuggingFaceAIModel),
+		LocalOllamaEndpoint: getEnv(EnvLocalOllamaEndpoint, DefaultLocalOllamaEndpoint),
+		PromptFile:          getEnv(EnvPromptFilePath, DefaultPromptFilePath),
 	}
+}
+
+func loadParameters(ctx context.Context, client *ssm.Client) (map[string]string, error) {
+	names := stagingParameterNames()
 
 	params := make(map[string]string, len(names))
 
@@ -192,6 +181,31 @@ func loadParameters(ctx context.Context, client *ssm.Client) (map[string]string,
 	}
 
 	return params, nil
+}
+
+func stagingParameterNames() []string {
+	return []string{
+		ssmParameter(ParameterDBHost),
+		ssmParameter(ParameterDBPort),
+		ssmParameter(ParameterDBName),
+		ssmParameter(ParameterRDSSecretArn),
+		ssmParameter(ParameterSQSCategoryEventsQueueURL),
+		ssmParameter(ParameterSQSNotificationEventsQueueURL),
+		ssmParameter(ParameterGroqAPIKey),
+		ssmParameter(ParameterGroqEndpoint),
+		ssmParameter(ParameterGroqModel),
+		ssmParameter(ParameterOpenRouterAPIKey),
+		ssmParameter(ParameterOpenRouterEndpoint),
+		ssmParameter(ParameterOpenRouterModel),
+		ssmParameter(ParameterGeminiAPIKey),
+		ssmParameter(ParameterGeminiModel),
+		ssmParameter(ParameterMistralAPIKey),
+		ssmParameter(ParameterMistralModel),
+		ssmParameter(ParameterMistralBaseURL),
+		ssmParameter(ParameterNvidiaAPIKey),
+		ssmParameter(ParameterNvidiaEndpoint),
+		ssmParameter(ParameterNvidiaModel),
+	}
 }
 
 func loadSecret(

@@ -15,6 +15,7 @@ import (
 	"github.com/vsayfb/gig-platform-categorization-service/internal/awsclient"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/processor"
+	"github.com/vsayfb/gig-platform-categorization-service/internal/runtimepolicy"
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/metrics"
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/tracing"
 	"go.opentelemetry.io/otel"
@@ -25,15 +26,9 @@ import (
 
 var tracer = otel.Tracer("worker")
 
-// messageProcessingTimeout bounds a single message's processing time. It is
-// deliberately independent of the worker's shutdown context: in-flight work
-// is given up to this long to finish cleanly on SIGTERM rather than being
-// cut off mid-transaction, but a stuck AI/DB call still can't hang forever.
 const (
-	messageProcessingTimeout = 2 * time.Minute
-	messageVisibilityTimeout = 3 * time.Minute
-	minimumReceiveBackoff    = time.Second
-	maximumReceiveBackoff    = 30 * time.Second
+	minimumReceiveBackoff = time.Second
+	maximumReceiveBackoff = 30 * time.Second
 )
 
 // sqsClient is the subset of *sqs.Client this package actually calls. Having
@@ -104,7 +99,7 @@ func (w *Worker) Run(ctx context.Context) error {
 			QueueUrl:              aws.String(w.queueURL),
 			MaxNumberOfMessages:   10,
 			WaitTimeSeconds:       20,
-			VisibilityTimeout:     int32(messageVisibilityTimeout / time.Second),
+			VisibilityTimeout:     int32(runtimepolicy.MessageVisibilityTimeout / time.Second),
 			MessageAttributeNames: []string{"All"},
 		})
 
@@ -145,9 +140,12 @@ func (w *Worker) Run(ctx context.Context) error {
 				// Detached from the shutdown context on purpose: a SIGTERM
 				// shouldn't abort a message that's already been pulled off
 				// the queue and is mid-processing. It's still bounded by
-				// messageProcessingTimeout so a stuck call can't hang the
+				// MessageProcessingTimeout so a stuck call can't hang the
 				// worker's drain step forever.
-				workCtx, cancel := context.WithTimeout(context.Background(), messageProcessingTimeout)
+				workCtx, cancel := context.WithTimeout(
+					context.Background(),
+					runtimepolicy.MessageProcessingTimeout,
+				)
 				defer cancel()
 
 				w.handleMessageSafely(workCtx, m)

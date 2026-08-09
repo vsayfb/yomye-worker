@@ -114,7 +114,7 @@ Configured providers are assembled in `cmd/worker/app.go`. Current fallback orde
 4. Mistral
 5. Nvidia
 
-Only fully configured providers are included. `FallbackExtractor` tries providers sequentially, records provider/model provenance as `generated_by`, stops on success, and returns joined errors when all fail. Each provider attempt has a 25-second deadline and the whole fallback chain has a 75-second deadline. Provider-level errors, invalid responses, and per-provider timeouts allow the next configured provider to run; caller cancellation or exhaustion of the total fallback deadline stops the chain immediately. Keep these budgets below the worker's two-minute message deadline so embeddings, database work, and notification publication retain time to finish. Keep output token limits controlled; oversized `max_tokens` previously caused avoidable credit failures.
+Only fully configured providers are included. Staging loads Gemini, Groq, OpenRouter, Mistral, and Nvidia configuration from SSM; do not add a provider to the fallback order without also wiring and testing its staging parameter retrieval/mapping. `FallbackExtractor` tries providers sequentially, records provider/model provenance as `generated_by`, stops on success, and returns joined errors when all fail. Each provider attempt has a 25-second deadline and the whole fallback chain has a 75-second deadline. Provider-level errors, invalid responses, and per-provider timeouts allow the next configured provider to run; caller cancellation or exhaustion of the total fallback deadline stops the chain immediately. Keep these budgets below the worker's two-minute message deadline so embeddings, database work, and notification publication retain time to finish. Keep output token limits controlled; oversized `max_tokens` previously caused avoidable credit failures.
 
 Prompts require JSON responses. OpenAI-compatible providers use JSON response format and temperature zero; Gemini requests JSON MIME output. Avoid brittle parsing hacks when prompt/schema validation can solve the issue cleanly.
 
@@ -238,6 +238,7 @@ Notifications happen after the database commit. DB work is atomic, but event pub
 - Processing concurrency is bounded by configuration; the DB pool is sized with headroom.
 - A single message has a two-minute processing deadline.
 - The receive visibility timeout is three minutes and must remain strictly longer than the processing deadline.
+- Cross-package runtime budgets are centralized in `internal/runtimepolicy/timeouts.go`; change the shared policy there rather than independently editing worker, extractor, or shutdown constants.
 - Shutdown stops receiving and drains in-flight work; in-flight work is detached from the shutdown context but remains timeout-bound. The application then gets up to 10 seconds to stop HTTP/telemetry/resources.
 - The worker is deployed as a `systemd` service. Its unit must allow the process to drain in-flight work before force termination; the repository provides `deploy/systemd/10-graceful-stop.conf` with `TimeoutStopSec=135s` and `KillSignal=SIGTERM`.
 - Panics are recovered per message so one bad record cannot crash the process.
@@ -359,6 +360,30 @@ The user has stated that this worker owns category-related schema design, while 
 - Current situation: the worker contains only the gig/service extraction path. Base-family classification and sale-specific prompts/types/validation/persistence code are removed; reloading an `OPEN` listing reads its title from `gig_details` only. Tests now cover the active gig-only contract rather than preserving dead sale behavior.
 - Why: dead multi-family code made the supported domain look broader than it is, increased maintenance surface, and could accidentally be revived without a deliberate product decision. If product-sale support returns, it should be designed against current requirements rather than inherited from stale partial implementation.
 
+### 2026-08-09 — OPEN DECISION: category localization lifecycle
+
+- Previous situation: category localizations were effectively first-write-wins through `ON CONFLICT (category_id, locale) DO NOTHING`, and this was briefly treated as a settled domain policy.
+- Current situation: keep the existing first-write-wins runtime behavior unchanged for now, but treat the long-term localization lifecycle as an open decision. Normal categorization still must not overwrite an existing `(category_id, locale)` row.
+- Why: the current behavior is stable and safe for staging, so there is no reason to introduce automatic updates now. We have not yet decided whether future corrections should remain manual/admin-only or use a separate controlled localization-maintenance path. Do not change this behavior incidentally; revisit it only as an explicit product/domain decision.
+
+### 2026-08-09 — OPEN DECISION: taxonomy retrieval scaling
+
+- Previous situation: every categorization request builds prompt context from the full active taxonomy hierarchy. This is simple and gives the model complete visibility, but prompt size, latency, and token cost will grow with the taxonomy.
+- Current situation: keep full-taxonomy prompting unchanged for now. Do not add embedding pre-retrieval, top-N candidate filtering, subtree selection, or other narrowing logic yet.
+- Why: taxonomy size is not yet demonstrated to be a practical bottleneck, and premature retrieval logic would add complexity while potentially hiding relevant categories from the model. Revisit this decision when measured taxonomy size, prompt tokens, latency, model context pressure, or AI cost show that the full hierarchy is no longer efficient. The likely future direction is retrieval of relevant categories/branches (potentially using existing embeddings/pgvector) followed by LLM reasoning over that reduced context, but the exact strategy remains undecided.
+
+### 2026-08-09 — Staging Mistral/Nvidia provider configuration completed
+
+- Previous situation: the staging fallback order included Mistral and Nvidia, but AWS configuration was incomplete in two different ways. Mistral parameters were fetched from SSM but never assigned into `cfg.AI.Mistral`; Nvidia fields were assigned from the parameter map but its SSM parameters were never requested, leaving them empty. Both providers could therefore be silently omitted from the active staging fallback chain despite appearing in `cmd/worker/app.go`.
+- Current situation: staging requests and maps API key, endpoint/base URL, and model parameters for both Mistral and Nvidia. Tests cover both the staging SSM parameter list and the final AI configuration mapping for all fallback providers.
+- Why: provider fallback is only real if every declared provider is fully wired in the deployment configuration. Silent partial wiring weakens resilience and makes the configured provider order misleading.
+
+### 2026-08-09 — Focused runtime cleanup without business-behavior changes
+
+- Previous situation: related timeout budgets were duplicated across worker, extractor, and application packages; full extraction and category-only extraction duplicated the same fallback loop; notification SQS publication duplicated marshal/send logic; and unused `gig_rejected` notification types/publisher code remained after the legacy sale path was removed.
+- Current situation: shared runtime budgets live in `internal/runtimepolicy/timeouts.go`; both extraction modes use one fallback implementation while preserving their existing behavior/error contract; notification publishing uses one internal marshal/send helper; and the unused `gig_rejected` event/publisher surface is removed. Health/readiness comments also no longer assume a container orchestrator because staging runs under `systemd`.
+- Why: reduce accidental maintenance surface and prevent policy drift without changing active listing/profession processing semantics. The cleanup keeps domain behavior intact while making future operational changes less likely to become inconsistent across packages.
+
 ## Repository map
 
 - `cmd/worker/`: dependency wiring and message-type dispatch.
@@ -369,6 +394,7 @@ The user has stated that this worker owns category-related schema design, while 
 - `internal/extractor/`: provider clients, response decoding, provider fallback, AI benchmark.
 - `internal/prompter/`: embedded prompts and builders.
 - `internal/notification/`: emitted event types and SQS publisher.
+- `internal/runtimepolicy/`: shared processing, visibility, AI fallback, and shutdown time budgets.
 - `pkg/embeddings/`: local Ollama embedding client.
 - `pkg/dbtx/`: transaction context propagation.
 - `migrations/`: category-domain schema.

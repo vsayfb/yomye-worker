@@ -37,25 +37,14 @@ func (p *SQSPublisher) PublishListingApproved(
 	ctx context.Context,
 	event ListingApprovedEnvelope,
 ) error {
-
-	body, err := json.Marshal(event)
-
+	messageID, err := p.publish(ctx, event)
 	if err != nil {
-		return fmt.Errorf("sqs: marshal event: %w", err)
-	}
-
-	inf, err := p.client.SendMessage(ctx, &sqs.SendMessageInput{
-		QueueUrl:    aws.String(p.queueURL),
-		MessageBody: aws.String(string(body)),
-	})
-
-	if err != nil {
-		return fmt.Errorf("sqs: send message: %w", err)
+		return err
 	}
 
 	slog.InfoContext(ctx,
 		"listing-approved event published",
-		"message_id", aws.ToString(inf.MessageId),
+		"message_id", messageID,
 		"event_id", event.EventID,
 		"event_version", event.Version,
 		"listing_id", event.Payload.ListingID,
@@ -64,49 +53,16 @@ func (p *SQSPublisher) PublishListingApproved(
 	return nil
 }
 
-func (p *SQSPublisher) PublishRejected(ctx context.Context, event RejectedEnvelope) error {
-
-	body, err := json.Marshal(event)
-
-	if err != nil {
-		return fmt.Errorf("sqs: marshal event: %w", err)
-	}
-
-	inf, err := p.client.SendMessage(ctx, &sqs.SendMessageInput{
-		QueueUrl:    aws.String(p.queueURL),
-		MessageBody: aws.String(string(body)),
-	})
-
-	if err != nil {
-		return fmt.Errorf("sqs: send message: %w", err)
-	}
-
-	slog.InfoContext(ctx, "sqs message sent for (gig):", "message", aws.ToString(inf.MessageId))
-
-	return nil
-}
-
 func (p *SQSPublisher) PublishGigCategoryMatched(ctx context.Context, event GigCategoryMatchedEventEnvelope) error {
-
-	body, err := json.Marshal(event)
-
+	messageID, err := p.publish(ctx, event)
 	if err != nil {
-		return fmt.Errorf("sqs: marshal event: %w", err)
-	}
-
-	inf, err := p.client.SendMessage(ctx, &sqs.SendMessageInput{
-		QueueUrl:    aws.String(p.queueURL),
-		MessageBody: aws.String(string(body)),
-	})
-
-	if err != nil {
-		return fmt.Errorf("sqs: send message: %w", err)
+		return err
 	}
 
 	slog.InfoContext(
 		ctx,
 		"gig-category-matched event published",
-		"message_id", aws.ToString(inf.MessageId),
+		"message_id", messageID,
 		"event_id", event.EventID,
 		"event_version", event.Version,
 		"gig_id", event.Payload.GigID,
@@ -114,6 +70,23 @@ func (p *SQSPublisher) PublishGigCategoryMatched(ctx context.Context, event GigC
 	)
 
 	return nil
+}
+
+func (p *SQSPublisher) publish(ctx context.Context, event any) (string, error) {
+	body, err := json.Marshal(event)
+	if err != nil {
+		return "", fmt.Errorf("sqs: marshal event: %w", err)
+	}
+
+	info, err := p.client.SendMessage(ctx, &sqs.SendMessageInput{
+		QueueUrl:    aws.String(p.queueURL),
+		MessageBody: aws.String(string(body)),
+	})
+	if err != nil {
+		return "", fmt.Errorf("sqs: send message: %w", err)
+	}
+
+	return aws.ToString(info.MessageId), nil
 }
 
 func (p *SQSPublisher) Close() error {

@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/processor"
+	"github.com/vsayfb/gig-platform-categorization-service/internal/runtimepolicy"
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/metrics"
 )
 
@@ -260,18 +261,18 @@ func TestReceiveBackoffIsExponentialAndCapped(t *testing.T) {
 }
 
 func TestMessageVisibilityExceedsProcessingTimeout(t *testing.T) {
-	if messageProcessingTimeout != 2*time.Minute {
-		t.Fatalf("message processing timeout = %s, want 2m", messageProcessingTimeout)
+	if runtimepolicy.MessageProcessingTimeout != 2*time.Minute {
+		t.Fatalf("message processing timeout = %s, want 2m", runtimepolicy.MessageProcessingTimeout)
 	}
-	if messageVisibilityTimeout <= messageProcessingTimeout {
+	if runtimepolicy.MessageVisibilityTimeout <= runtimepolicy.MessageProcessingTimeout {
 		t.Fatalf(
 			"message visibility timeout %s must exceed processing timeout %s",
-			messageVisibilityTimeout,
-			messageProcessingTimeout,
+			runtimepolicy.MessageVisibilityTimeout,
+			runtimepolicy.MessageProcessingTimeout,
 		)
 	}
-	if messageVisibilityTimeout != 3*time.Minute {
-		t.Fatalf("message visibility timeout = %s, want 3m", messageVisibilityTimeout)
+	if runtimepolicy.MessageVisibilityTimeout != 3*time.Minute {
+		t.Fatalf("message visibility timeout = %s, want 3m", runtimepolicy.MessageVisibilityTimeout)
 	}
 }
 

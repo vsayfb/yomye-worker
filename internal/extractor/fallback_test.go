@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/vsayfb/gig-platform-categorization-service/internal/runtimepolicy"
 )
 
 type fallbackTestExtractor struct {
@@ -34,17 +36,17 @@ func (f *fallbackTestExtractor) ExtractCategoryPath(
 }
 
 func TestFallbackExtractor_DefaultBudgetsFitWorkerDeadline(t *testing.T) {
-	if defaultProviderAttemptTimeout != 25*time.Second {
-		t.Fatalf("provider timeout = %s, want 25s", defaultProviderAttemptTimeout)
+	if runtimepolicy.AIProviderAttemptTimeout != 25*time.Second {
+		t.Fatalf("provider timeout = %s, want 25s", runtimepolicy.AIProviderAttemptTimeout)
 	}
-	if defaultFallbackTotalTimeout != 75*time.Second {
-		t.Fatalf("total fallback timeout = %s, want 75s", defaultFallbackTotalTimeout)
+	if runtimepolicy.AIFallbackTotalTimeout != 75*time.Second {
+		t.Fatalf("total fallback timeout = %s, want 75s", runtimepolicy.AIFallbackTotalTimeout)
 	}
-	if defaultProviderAttemptTimeout >= defaultFallbackTotalTimeout {
+	if runtimepolicy.AIProviderAttemptTimeout >= runtimepolicy.AIFallbackTotalTimeout {
 		t.Fatalf(
 			"provider timeout %s must be lower than total fallback timeout %s",
-			defaultProviderAttemptTimeout,
-			defaultFallbackTotalTimeout,
+			runtimepolicy.AIProviderAttemptTimeout,
+			runtimepolicy.AIFallbackTotalTimeout,
 		)
 	}
 }
