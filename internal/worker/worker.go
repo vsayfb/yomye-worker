@@ -24,7 +24,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var tracer = otel.Tracer("worker")
+var tracer = otel.Tracer("categorization/worker")
 
 const (
 	minimumReceiveBackoff = time.Second
@@ -210,8 +210,10 @@ func (w *Worker) handleMessage(ctx context.Context, m types.Message) {
 	msgCtx, span := tracer.Start(
 		msgCtx,
 		"process-message",
+		trace.WithSpanKind(trace.SpanKindConsumer),
 		trace.WithAttributes(
-			attribute.String("messaging.system", "aws.sqs"),
+			attribute.String("messaging.system", "aws_sqs"),
+			attribute.String("messaging.operation.name", "process"),
 			attribute.String("messaging.message.id", aws.ToString(m.MessageId)),
 			attribute.String("messaging.message.type", msgType),
 		),

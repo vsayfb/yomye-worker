@@ -30,7 +30,7 @@ const (
 	maxCategoryPathDepth    = 4
 )
 
-var tracer = otel.Tracer("worker")
+var tracer = otel.Tracer("categorization/processor")
 
 var (
 	ErrCategoryNotDetected = errors.New("category not detected")
@@ -164,25 +164,43 @@ func validateListingCreatedMessage(msg ListingCreatedMessage) error {
 }
 
 func (s *GigProcessor) prepareListing(ctx context.Context, description string) (*preparedListing, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"listing.prepare",
+		trace.WithAttributes(attribute.Int("listing.description_length", len(description))),
+	)
+	var resultErr error
+	defer func() { finishProcessorSpan(span, resultErr) }()
+
 	baseCategorySlug := BaseCategoryGig
 
 	baseCategoryID, err := s.resolveBaseCategory(ctx, baseCategorySlug)
 	if err != nil {
-		return nil, err
+		resultErr = err
+		return nil, resultErr
 	}
+	span.SetAttributes(attribute.String("base_category.id", baseCategoryID.String()))
 
 	extracted, err := s.extractListing(ctx, description, baseCategorySlug, baseCategoryID)
 	if err != nil {
-		return nil, err
+		resultErr = err
+		return nil, resultErr
 	}
 
 	if err := validateExtractionForBaseCategory(extracted, baseCategorySlug); err != nil {
-		return nil, err
+		resultErr = err
+		return nil, resultErr
 	}
+	span.SetAttributes(
+		attribute.String("ai.generator", extracted.GeneratedBy),
+		attribute.String("content.locale", extracted.SourceLocale),
+		attribute.Int("category.path_depth", len(extracted.CategoryPath)),
+	)
 
 	embeddedPath, err := s.embedCategoryPath(ctx, extracted.CategoryPath)
 	if err != nil {
-		return nil, err
+		resultErr = err
+		return nil, resultErr
 	}
 
 	return &preparedListing{
@@ -227,7 +245,17 @@ func (s *GigProcessor) extractListing(
 func (s *GigProcessor) embedCategoryPath(
 	ctx context.Context,
 	categoryPath []extractor.ExtractedCategoryNode,
-) ([]embeddedCategoryNode, error) {
+) (result []embeddedCategoryNode, resultErr error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"category_path.embed",
+		trace.WithAttributes(
+			attribute.String("workflow", "listing"),
+			attribute.Int("category.path_depth", len(categoryPath)),
+		),
+	)
+	defer func() { finishProcessorSpan(span, resultErr) }()
+
 	embeddedPath := make([]embeddedCategoryNode, 0, len(categoryPath))
 	for index, node := range categoryPath {
 		embedded, err := s.embedCategoryNode(ctx, categoryPath, index, node)
@@ -272,7 +300,18 @@ func (s *GigProcessor) persistListing(
 	listingID uuid.UUID,
 	description string,
 	prepared *preparedListing,
-) (*ProcessResult, error) {
+) (persisted *ProcessResult, resultErr error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"listing.persist_transaction",
+		trace.WithAttributes(
+			attribute.String("listing.id", listingID.String()),
+			attribute.String("base_category.id", prepared.baseCategoryID.String()),
+			attribute.Int("category.path_depth", len(prepared.embeddedPath)),
+		),
+	)
+	defer func() { finishProcessorSpan(span, resultErr) }()
+
 	result := newProcessResult(prepared.extraction)
 
 	err := s.repo.RunInTx(ctx, func(txCtx context.Context) error {
@@ -281,6 +320,7 @@ func (s *GigProcessor) persistListing(
 	if err != nil {
 		return nil, err
 	}
+	span.SetAttributes(attribute.Bool("listing.already_open", result.AlreadyOpen))
 
 	return result, nil
 }
@@ -398,7 +438,19 @@ func (s *GigProcessor) findOrCreateCategory(
 	depth int,
 	embedded embeddedCategoryNode,
 	generatedBy string,
-) (*Category, error) {
+) (resolved *Category, resultErr error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"taxonomy.resolve_node",
+		trace.WithAttributes(
+			attribute.String("workflow", "listing"),
+			attribute.Int("category.depth", depth),
+			attribute.String("category.canonical_slug", embedded.Node.CanonicalSlug),
+			attribute.Bool("category.is_selectable", embedded.Node.IsSelectable),
+		),
+	)
+	defer func() { finishProcessorSpan(span, resultErr) }()
+
 	categorySlug := embedded.Node.CanonicalSlug
 	category, err := s.repo.FindCategory(
 		ctx,
@@ -412,6 +464,10 @@ func (s *GigProcessor) findOrCreateCategory(
 		return nil, fmt.Errorf("find similar category at depth %d: %w", depth, err)
 	}
 	if category != nil {
+		span.SetAttributes(
+			attribute.String("taxonomy.action", "reused"),
+			attribute.String("category.id", category.ID.String()),
+		)
 		metrics.ObserveCategoryResolution(ctx, "listing", "reused")
 		if embedded.Node.IsSelectable && !category.IsSelectable {
 			category, err = s.repo.PromoteCategorySelectable(ctx, category.ID, baseCategoryID)
@@ -443,6 +499,10 @@ func (s *GigProcessor) findOrCreateCategory(
 	if category == nil {
 		return nil, fmt.Errorf("create category at depth %d: repository returned nil category", depth)
 	}
+	span.SetAttributes(
+		attribute.String("taxonomy.action", "created"),
+		attribute.String("category.id", category.ID.String()),
+	)
 	metrics.ObserveCategoryResolution(ctx, "listing", "created")
 	if err := s.ensureLocalization(ctx, category.ID, embedded.Node, generatedBy); err != nil {
 		return nil, fmt.Errorf("ensure category localization at depth %d: %w", depth, err)
@@ -524,7 +584,17 @@ func (s *GigProcessor) publishNotifications(
 	ctx context.Context,
 	msg ListingCreatedMessage,
 	result *ProcessResult,
-) error {
+) (resultErr error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"listing.publish_notifications",
+		trace.WithAttributes(
+			attribute.String("listing.id", msg.ListingID.String()),
+			attribute.Bool("listing.replay", result.AlreadyOpen),
+		),
+	)
+	defer func() { finishProcessorSpan(span, resultErr) }()
+
 	if err := s.publishListingApproved(ctx, msg, result); err != nil {
 		return err
 	}

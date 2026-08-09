@@ -11,7 +11,13 @@ import (
 	"time"
 
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var embeddingTracer = otel.Tracer("categorization/embeddings")
 
 type LocalClient struct {
 	client *http.Client
@@ -34,7 +40,26 @@ func NewLocalClient(cfg *config.Config) *LocalClient {
 	}
 }
 
-func (c *LocalClient) Embed(ctx context.Context, text string) ([]float32, error) {
+func (c *LocalClient) Embed(ctx context.Context, text string) (embedding []float32, resultErr error) {
+	ctx, span := embeddingTracer.Start(
+		ctx,
+		"ollama.embed",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("ai.model", c.cfg.AI.HuggingFaceAIModel),
+			attribute.Int("embedding.input_length", len(text)),
+		),
+	)
+	defer func() {
+		if resultErr != nil {
+			span.RecordError(resultErr)
+			span.SetStatus(codes.Error, resultErr.Error())
+		} else {
+			span.SetAttributes(attribute.Int("embedding.dimension", len(embedding)))
+			span.SetStatus(codes.Ok, "embedding generated")
+		}
+		span.End()
+	}()
 
 	reqBody := OllamaEmbeddingRequest{
 		Model:  c.cfg.AI.HuggingFaceAIModel,
@@ -58,6 +83,11 @@ func (c *LocalClient) Embed(ctx context.Context, text string) ([]float32, error)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	span.SetAttributes(
+		attribute.String("server.address", req.URL.Hostname()),
+		attribute.String("url.scheme", req.URL.Scheme),
+		attribute.String("http.request.method", req.Method),
+	)
 
 	resp, err := c.client.Do(req)
 
@@ -68,8 +98,10 @@ func (c *LocalClient) Embed(ctx context.Context, text string) ([]float32, error)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		span.SetAttributes(attribute.Int("http.response.status_code", resp.StatusCode))
 		return nil, fmt.Errorf("ollama returned bad status: %s", resp.Status)
 	}
+	span.SetAttributes(attribute.Int("http.response.status_code", resp.StatusCode))
 
 	var result OllamaEmbeddingResponse
 

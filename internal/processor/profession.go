@@ -14,6 +14,7 @@ import (
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/metrics"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const maxProfessionCategoryPathDepth = 4
@@ -131,19 +132,31 @@ func (s *ProfessionProcessor) Process(ctx context.Context, record Message) (err 
 		return err
 	}
 
+	embedCtx, embedSpan := tracer.Start(
+		ctx,
+		"category_path.embed",
+		trace.WithAttributes(
+			attribute.String("workflow", "profession"),
+			attribute.Int("category.path_depth", len(extracted.CategoryPath)),
+		),
+	)
 	embeddedPath := make([]embeddedProfessionCategoryNode, 0, len(extracted.CategoryPath))
 	for index, node := range extracted.CategoryPath {
 		embedding, err := s.embeddingClient.Embed(
-			ctx,
+			embedCtx,
 			categoryEmbeddingText(extracted.CategoryPath, index),
 		)
 		if err != nil {
 			metrics.ObserveEmbeddingFailure(ctx, "profession")
-			return fmt.Errorf("generate profession category embedding for %q: %w", node.CanonicalName, err)
+			err = fmt.Errorf("generate profession category embedding for %q: %w", node.CanonicalName, err)
+			finishProcessorSpan(embedSpan, err)
+			return err
 		}
 		if len(embedding) == 0 {
 			metrics.ObserveEmbeddingFailure(ctx, "profession")
-			return fmt.Errorf("generate profession category embedding for %q: empty embedding", node.CanonicalName)
+			err = fmt.Errorf("generate profession category embedding for %q: empty embedding", node.CanonicalName)
+			finishProcessorSpan(embedSpan, err)
+			return err
 		}
 
 		embeddedPath = append(embeddedPath, embeddedProfessionCategoryNode{
@@ -151,11 +164,22 @@ func (s *ProfessionProcessor) Process(ctx context.Context, record Message) (err 
 			embedding: embedding,
 		})
 	}
+	finishProcessorSpan(embedSpan, nil)
 
 	var professionCategory *Category
 	stale := false
 
-	if err := s.repo.RunInTx(ctx, func(txCtx context.Context) error {
+	txCtx, txSpan := tracer.Start(
+		ctx,
+		"profession.persist_transaction",
+		trace.WithAttributes(
+			attribute.String("profession.request_id", msg.RequestID.String()),
+			attribute.String("profession.author_id", msg.AuthorID.String()),
+			attribute.String("base_category.id", baseCategoryID.String()),
+			attribute.Int("category.path_depth", len(embeddedPath)),
+		),
+	)
+	txErr := s.repo.RunInTx(txCtx, func(txCtx context.Context) error {
 		// This is the authoritative stale-event check. The row lock prevents the
 		// request ID from changing while the category path and association commit.
 		lockedRequestID, exists, err := s.repo.LockCurrentProfessionRequest(txCtx, msg.AuthorID)
@@ -181,64 +205,11 @@ func (s *ProfessionProcessor) Process(ctx context.Context, record Message) (err 
 				)
 			}
 
-			category, err := s.repo.FindCategory(
-				txCtx,
-				baseCategoryID,
-				parentID,
-				embedded.node.CanonicalName,
-				categorySlug,
-				embedded.embedding,
+			category, err := s.resolveProfessionCategoryNode(
+				txCtx, baseCategoryID, parentID, depth, embedded, extracted.GeneratedBy,
 			)
 			if err != nil {
-				return fmt.Errorf("find profession category at depth %d: %w", depth, err)
-			}
-
-			resolutionAction := "reused"
-			if category == nil {
-				resolutionAction = "created"
-				category, err = s.repo.CreateCategory(
-					txCtx,
-					baseCategoryID,
-					parentID,
-					embedded.node.CanonicalName,
-					categorySlug,
-					embedded.node.CanonicalDescription,
-					extracted.GeneratedBy,
-					embedded.node.IsSelectable,
-					int16(depth),
-					embedded.embedding,
-				)
-				if err != nil {
-					return fmt.Errorf("create profession category at depth %d: %w", depth, err)
-				}
-			} else if embedded.node.IsSelectable && !category.IsSelectable {
-				category, err = s.repo.PromoteCategorySelectable(
-					txCtx,
-					category.ID,
-					baseCategoryID,
-				)
-				if err != nil {
-					return fmt.Errorf("promote profession category at depth %d: %w", depth, err)
-				}
-			}
-
-			if category == nil || category.ID == uuid.Nil {
-				return fmt.Errorf(
-					"persist profession category at depth %d: repository returned an invalid category",
-					depth,
-				)
-			}
-			metrics.ObserveCategoryResolution(txCtx, "profession", resolutionAction)
-
-			if err := s.repo.EnsureCategoryLocalization(txCtx, CategoryLocalization{
-				CategoryID:  category.ID,
-				Locale:      embedded.node.Locale,
-				Name:        embedded.node.LocalizedName,
-				Slug:        embedded.node.LocalizedSlug,
-				Description: embedded.node.LocalizedDescription,
-				GeneratedBy: extracted.GeneratedBy,
-			}); err != nil {
-				return fmt.Errorf("ensure profession localization at depth %d: %w", depth, err)
+				return err
 			}
 
 			professionCategory = category
@@ -261,8 +232,10 @@ func (s *ProfessionProcessor) Process(ctx context.Context, record Message) (err 
 		}
 
 		return nil
-	}); err != nil {
-		return err
+	})
+	finishProcessorSpan(txSpan, txErr)
+	if txErr != nil {
+		return txErr
 	}
 
 	if stale {
@@ -286,6 +259,90 @@ func (s *ProfessionProcessor) Process(ctx context.Context, record Message) (err 
 	)
 
 	return nil
+}
+
+func (s *ProfessionProcessor) resolveProfessionCategoryNode(
+	ctx context.Context,
+	baseCategoryID uuid.UUID,
+	parentID *uuid.UUID,
+	depth int,
+	embedded embeddedProfessionCategoryNode,
+	generatedBy string,
+) (category *Category, resultErr error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"taxonomy.resolve_node",
+		trace.WithAttributes(
+			attribute.String("workflow", "profession"),
+			attribute.Int("category.depth", depth),
+			attribute.String("category.canonical_slug", embedded.node.CanonicalSlug),
+			attribute.Bool("category.is_selectable", embedded.node.IsSelectable),
+		),
+	)
+	defer func() { finishProcessorSpan(span, resultErr) }()
+
+	category, err := s.repo.FindCategory(
+		ctx,
+		baseCategoryID,
+		parentID,
+		embedded.node.CanonicalName,
+		embedded.node.CanonicalSlug,
+		embedded.embedding,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find profession category at depth %d: %w", depth, err)
+	}
+
+	resolutionAction := "reused"
+	if category == nil {
+		resolutionAction = "created"
+		category, err = s.repo.CreateCategory(
+			ctx,
+			baseCategoryID,
+			parentID,
+			embedded.node.CanonicalName,
+			embedded.node.CanonicalSlug,
+			embedded.node.CanonicalDescription,
+			generatedBy,
+			embedded.node.IsSelectable,
+			int16(depth),
+			embedded.embedding,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("create profession category at depth %d: %w", depth, err)
+		}
+	} else if embedded.node.IsSelectable && !category.IsSelectable {
+		category, err = s.repo.PromoteCategorySelectable(ctx, category.ID, baseCategoryID)
+		if err != nil {
+			return nil, fmt.Errorf("promote profession category at depth %d: %w", depth, err)
+		}
+	}
+
+	if category == nil || category.ID == uuid.Nil {
+		return nil, fmt.Errorf(
+			"persist profession category at depth %d: repository returned an invalid category",
+			depth,
+		)
+	}
+
+	span.SetAttributes(
+		attribute.String("taxonomy.action", resolutionAction),
+		attribute.String("category.id", category.ID.String()),
+	)
+	metrics.ObserveCategoryResolution(ctx, "profession", resolutionAction)
+
+	if err := s.repo.EnsureCategoryLocalization(ctx, CategoryLocalization{
+		CategoryID:  category.ID,
+		Locale:      embedded.node.Locale,
+		Name:        embedded.node.LocalizedName,
+		Slug:        embedded.node.LocalizedSlug,
+		Description: embedded.node.LocalizedDescription,
+		GeneratedBy: generatedBy,
+	}); err != nil {
+		return nil, fmt.Errorf("ensure profession localization at depth %d: %w", depth, err)
+	}
+
+	return category, nil
 }
 
 func logIgnoredProfessionEvent(

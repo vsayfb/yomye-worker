@@ -8,7 +8,13 @@ import (
 
 	"github.com/vsayfb/gig-platform-categorization-service/internal/runtimepolicy"
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/metrics"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var extractorTracer = otel.Tracer("categorization/extractor")
 
 type FallbackExtractor struct {
 	extractors      []Extractor
@@ -57,7 +63,18 @@ func (f *FallbackExtractor) extractWithFallback(
 	operation string,
 	allFailedMessage string,
 	extract func(context.Context, Extractor) (*ExtractedListing, error),
-) (*ExtractedListing, error) {
+) (result *ExtractedListing, resultErr error) {
+	ctx, span := extractorTracer.Start(
+		ctx,
+		"ai.fallback",
+		trace.WithAttributes(
+			attribute.String("ai.operation", operation),
+			attribute.Int("ai.provider_count", len(f.extractors)),
+			attribute.Int64("ai.total_timeout_ms", f.totalTimeout.Milliseconds()),
+		),
+	)
+	defer func() { finishExtractorSpan(span, resultErr) }()
+
 	if len(f.extractors) == 0 {
 		return nil, fmt.Errorf("no extractors configured")
 	}
@@ -69,10 +86,26 @@ func (f *FallbackExtractor) extractWithFallback(
 
 	for index, e := range f.extractors {
 		attemptCtx, cancelAttempt := context.WithTimeout(totalCtx, f.providerTimeout)
+		attemptCtx, attemptSpan := extractorTracer.Start(
+			attemptCtx,
+			"ai.provider.attempt",
+			trace.WithSpanKind(trace.SpanKindClient),
+			trace.WithAttributes(
+				attribute.String("ai.operation", operation),
+				attribute.String("ai.generator", e.Generator()),
+				attribute.Int("ai.attempt", index+1),
+				attribute.Int64("ai.provider_timeout_ms", f.providerTimeout.Milliseconds()),
+			),
+		)
 		res, err := extract(attemptCtx, e)
 		cancelAttempt()
+		finishExtractorSpan(attemptSpan, err)
 
 		if err == nil {
+			span.SetAttributes(
+				attribute.String("ai.selected_generator", e.Generator()),
+				attribute.Int("ai.attempts", index+1),
+			)
 			return res, nil
 		}
 
@@ -92,9 +125,27 @@ func (f *FallbackExtractor) extractWithFallback(
 		}
 
 		if index+1 < len(f.extractors) {
-			metrics.ObserveAIFallback(ctx, e.Generator(), f.extractors[index+1].Generator())
+			nextGenerator := f.extractors[index+1].Generator()
+			metrics.ObserveAIFallback(ctx, e.Generator(), nextGenerator)
+			span.AddEvent(
+				"ai.provider.fallback",
+				trace.WithAttributes(
+					attribute.String("ai.from_generator", e.Generator()),
+					attribute.String("ai.to_generator", nextGenerator),
+				),
+			)
 		}
 	}
 
 	return nil, fmt.Errorf("%s: %w", allFailedMessage, errors.Join(errs...))
+}
+
+func finishExtractorSpan(span trace.Span, err error) {
+	defer span.End()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return
+	}
+	span.SetStatus(codes.Ok, "completed")
 }

@@ -146,6 +146,16 @@ Metric attributes must stay low-cardinality. Do not add listing IDs, user IDs, r
 
 Tracing sampling is environment-aware. Development samples every trace for local debugging. Staging and production use parent-based 10% root sampling so upstream sampling decisions are honored and steady-state trace volume stays bounded. Do not restore unconditional `AlwaysSample()` in deployed environments without an explicit temporary debugging reason.
 
+Expected trace waterfall:
+
+- `process-message` -> `process-listing` or `process-profession`
+- `ai.fallback` -> one or more `ai.provider.attempt` client spans
+- `category_path.embed` -> one `ollama.embed` client span per path node
+- `listing.persist_transaction` or `profession.persist_transaction` -> `taxonomy.resolve_node` spans
+- `listing.publish_notifications` -> one producer span for each outbound SQS event
+
+Trace attributes may include entity IDs and canonical slugs because traces are diagnostic and sampled. Never attach raw descriptions, prompts, AI responses, credentials, or arbitrary full error payloads as attributes. Errors should be recorded through span error/status APIs.
+
 ## Listing processing contract
 
 Accepted SQS message types:
@@ -273,6 +283,12 @@ The user has stated that this worker owns category-related schema design, while 
 - Post-commit notifications preserve DB correctness. Re-publishing on `OPEN` replay closes the silent-loss window but accepts possible duplicate events. Introduce an outbox only if future requirements justify stronger delivery/deduplication guarantees.
 
 ## Recent implementation decisions
+
+### 2026-08-09 — Dependency and workflow trace spans
+
+- Previous situation: traces showed SQS receipt and the top-level processor only, so AI fallback delays, Ollama failures, database transaction time, taxonomy decisions, and outbound notification latency could not be distinguished.
+- Current situation: spans cover the fallback chain and each provider attempt, category-path embedding and each Ollama request, listing/profession persistence transactions, each taxonomy node resolution, and each notification publish. Provider and external-call spans use client/producer span kinds, errors are recorded on the failing child, and prompts/descriptions are not captured.
+- Why: traces should identify the slow or failing boundary without relying on log correlation or adding high-cardinality operational metrics.
 
 ### 2026-08-09 — SQS visibility and permanent message failures
 

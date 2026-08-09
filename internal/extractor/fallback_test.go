@@ -8,6 +8,10 @@ import (
 	"time"
 
 	"github.com/vsayfb/gig-platform-categorization-service/internal/runtimepolicy"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 type fallbackTestExtractor struct {
@@ -179,4 +183,69 @@ func TestFallbackExtractor_CategoryPathDoesNotRunFullExtraction(t *testing.T) {
 	if result.GeneratedBy != "category-only:model" {
 		t.Fatalf("generated_by = %q, want category-only:model", result.GeneratedBy)
 	}
+}
+
+func TestFallbackExtractor_EmitsFallbackAndProviderAttemptSpans(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	previousProvider := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() {
+		otel.SetTracerProvider(previousProvider)
+		_ = provider.Shutdown(context.Background())
+	})
+
+	first := &fallbackTestExtractor{
+		generator: "first:model",
+		extractFn: func(context.Context) (*ExtractedListing, error) {
+			return nil, errors.New("provider unavailable")
+		},
+	}
+	second := &fallbackTestExtractor{
+		generator: "second:model",
+		extractFn: func(context.Context) (*ExtractedListing, error) {
+			return &ExtractedListing{GeneratedBy: "second:model"}, nil
+		},
+	}
+
+	fallback := NewFallbackExtractor(first, second)
+	if _, err := fallback.Extract(context.Background(), "description", "gig", "catalog"); err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+
+	spans := recorder.Ended()
+	var fallbackSpan sdktrace.ReadOnlySpan
+	var attempts []sdktrace.ReadOnlySpan
+	for _, span := range spans {
+		switch span.Name() {
+		case "ai.fallback":
+			fallbackSpan = span
+		case "ai.provider.attempt":
+			attempts = append(attempts, span)
+		}
+	}
+
+	if fallbackSpan == nil {
+		t.Fatal("missing ai.fallback span")
+	}
+	if len(attempts) != 2 {
+		t.Fatalf("provider attempt spans = %d, want 2", len(attempts))
+	}
+	if got := spanAttribute(fallbackSpan.Attributes(), "ai.selected_generator"); got != "second:model" {
+		t.Fatalf("selected generator = %v, want second:model", got)
+	}
+	for _, attempt := range attempts {
+		if attempt.Parent().SpanID() != fallbackSpan.SpanContext().SpanID() {
+			t.Fatalf("attempt %q is not a child of fallback span", spanAttribute(attempt.Attributes(), "ai.generator"))
+		}
+	}
+}
+
+func spanAttribute(attributes []attribute.KeyValue, key attribute.Key) any {
+	for _, value := range attributes {
+		if value.Key == key {
+			return value.Value.AsInterface()
+		}
+	}
+	return nil
 }

@@ -10,11 +10,21 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/awsclient"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var notificationTracer = otel.Tracer("categorization/notification")
+
+type sqsClient interface {
+	SendMessage(context.Context, *sqs.SendMessageInput, ...func(*sqs.Options)) (*sqs.SendMessageOutput, error)
+}
 
 type SQSPublisher struct {
 	queueURL string
-	client   *sqs.Client
+	client   sqsClient
 }
 
 func NewNotificationPublisher(ctx context.Context, cfg *config.Config) (*SQSPublisher, error) {
@@ -36,11 +46,27 @@ func NewNotificationPublisher(ctx context.Context, cfg *config.Config) (*SQSPubl
 func (p *SQSPublisher) PublishListingApproved(
 	ctx context.Context,
 	event ListingApprovedEnvelope,
-) error {
+) (resultErr error) {
+	ctx, span := notificationTracer.Start(
+		ctx,
+		"sqs.publish listing_approved",
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "aws_sqs"),
+			attribute.String("messaging.operation.name", "publish"),
+			attribute.String("messaging.message.type", string(event.Type)),
+			attribute.String("messaging.message.id", event.EventID.String()),
+			attribute.Int("messaging.message.version", event.Version),
+			attribute.String("listing.id", event.Payload.ListingID.String()),
+		),
+	)
+	defer func() { finishNotificationSpan(span, resultErr) }()
+
 	messageID, err := p.publish(ctx, event)
 	if err != nil {
 		return err
 	}
+	span.SetAttributes(attribute.String("messaging.sqs.message_id", messageID))
 
 	slog.InfoContext(ctx,
 		"listing-approved event published",
@@ -54,10 +80,29 @@ func (p *SQSPublisher) PublishListingApproved(
 }
 
 func (p *SQSPublisher) PublishGigCategoryMatched(ctx context.Context, event GigCategoryMatchedEventEnvelope) error {
+	ctx, span := notificationTracer.Start(
+		ctx,
+		"sqs.publish gig_category_matched",
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "aws_sqs"),
+			attribute.String("messaging.operation.name", "publish"),
+			attribute.String("messaging.message.type", string(event.Type)),
+			attribute.String("messaging.message.id", event.EventID.String()),
+			attribute.Int("messaging.message.version", event.Version),
+			attribute.String("listing.id", event.Payload.GigID.String()),
+			attribute.String("category.id", event.Payload.CategoryID.String()),
+		),
+	)
+	var resultErr error
+	defer func() { finishNotificationSpan(span, resultErr) }()
+
 	messageID, err := p.publish(ctx, event)
 	if err != nil {
-		return err
+		resultErr = err
+		return resultErr
 	}
+	span.SetAttributes(attribute.String("messaging.sqs.message_id", messageID))
 
 	slog.InfoContext(
 		ctx,
@@ -70,6 +115,16 @@ func (p *SQSPublisher) PublishGigCategoryMatched(ctx context.Context, event GigC
 	)
 
 	return nil
+}
+
+func finishNotificationSpan(span trace.Span, err error) {
+	defer span.End()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return
+	}
+	span.SetStatus(codes.Ok, "event published")
 }
 
 func (p *SQSPublisher) publish(ctx context.Context, event any) (string, error) {
