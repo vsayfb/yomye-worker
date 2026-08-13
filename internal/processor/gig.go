@@ -27,7 +27,11 @@ const (
 
 	listingStatusOpen       = "OPEN"
 	listingStatusProcessing = "PROCESSING"
+	listingStatusFailed     = "FAILED"
 	maxCategoryPathDepth    = 4
+	maxCanonicalFieldLength = 100
+	maxLocaleLength         = 35
+	maxGeneratedByLength    = 200
 )
 
 var tracer = otel.Tracer("categorization/processor")
@@ -89,7 +93,7 @@ type ListingCreatedMessage struct {
 	ListingID   uuid.UUID  `json:"listing_id"`
 	Description string     `json:"description"`
 	AuthorID    uuid.UUID  `json:"author_id"`
-	CountryID   *uuid.UUID `json:"country_id,omitempty"`
+	CountryID   uuid.UUID  `json:"country_id"`
 	PlaceID     *uuid.UUID `json:"place_id,omitempty"`
 }
 
@@ -112,6 +116,19 @@ func (s *GigProcessor) Process(ctx context.Context, record Message) (err error) 
 func (s *GigProcessor) processListing(ctx context.Context, msg ListingCreatedMessage) error {
 	description := strings.TrimSpace(msg.Description)
 	logListingProcessing(ctx, msg.ListingID, description)
+
+	moderation, err := s.fallback.Moderate(ctx, description)
+	if err != nil {
+		return fmt.Errorf("moderate listing content: %w", err)
+	}
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.String("moderation.decision", string(moderation.Decision)),
+		attribute.String("moderation.generator", moderation.GeneratedBy),
+	)
+	if moderation.Decision == extractor.ModerationReject {
+		trace.SpanFromContext(ctx).SetAttributes(attribute.String("moderation.reason", moderation.Reason))
+		return s.rejectListing(ctx, msg, moderation)
+	}
 
 	prepared, err := s.prepareListing(ctx, description)
 	if errors.Is(err, ErrCategoryNotDetected) {
@@ -136,6 +153,73 @@ func (s *GigProcessor) processListing(ctx context.Context, msg ListingCreatedMes
 	return s.publishNotifications(ctx, msg, result)
 }
 
+func (s *GigProcessor) rejectListing(
+	ctx context.Context,
+	msg ListingCreatedMessage,
+	moderation *extractor.ModerationResult,
+) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"listing.reject",
+		trace.WithAttributes(
+			attribute.String("listing.id", msg.ListingID.String()),
+			attribute.String("moderation.reason", moderation.Reason),
+		),
+	)
+	var resultErr error
+	defer func() { finishProcessorSpan(span, resultErr) }()
+
+	var openResult *ProcessResult
+	err := s.repo.RunInTx(ctx, func(txCtx context.Context) error {
+		state, err := s.repo.LockListing(txCtx, msg.ListingID)
+		if err != nil {
+			return fmt.Errorf("lock listing for rejection: %w", err)
+		}
+
+		switch state.Status {
+		case listingStatusProcessing:
+			if err := s.repo.RejectListing(txCtx, msg.ListingID); err != nil {
+				return fmt.Errorf("reject listing: %w", err)
+			}
+		case listingStatusFailed:
+			// SQS replay after a post-commit notification failure.
+		case listingStatusOpen:
+			openResult = &ProcessResult{}
+			copyOpenListingState(openResult, state.Category, state.BaseCategorySlug, state.Title)
+		default:
+			return fmt.Errorf("listing has non-rejectable status %q", state.Status)
+		}
+		return nil
+	})
+	if err != nil {
+		resultErr = err
+		return resultErr
+	}
+
+	// Never retroactively reject an already-published listing during replay.
+	if openResult != nil {
+		resultErr = s.publishNotifications(ctx, msg, openResult)
+		return resultErr
+	}
+
+	slog.InfoContext(
+		ctx,
+		"listing content rejected",
+		"listing_id", msg.ListingID,
+		"reason", moderation.Reason,
+		"generated_by", moderation.GeneratedBy,
+	)
+	resultErr = publishContentRejected(
+		ctx,
+		s.notificationPublisher,
+		msg.AuthorID,
+		notification.RejectedSubjectListing,
+		msg.ListingID,
+		moderation.Reason,
+	)
+	return resultErr
+}
+
 func decodeListingCreatedMessage(body string) (ListingCreatedMessage, error) {
 	var msg ListingCreatedMessage
 	if err := json.Unmarshal([]byte(body), &msg); err != nil {
@@ -157,8 +241,8 @@ func validateListingCreatedMessage(msg ListingCreatedMessage) error {
 	if strings.TrimSpace(msg.Description) == "" {
 		return errors.New("invalid listing-created message: empty description")
 	}
-	if msg.PlaceID != nil && msg.CountryID == nil {
-		return errors.New("invalid listing-created message: place_id requires country_id")
+	if msg.CountryID == uuid.Nil {
+		return errors.New("invalid listing-created message: missing country_id")
 	}
 	return nil
 }
@@ -490,7 +574,7 @@ func (s *GigProcessor) findOrCreateCategory(
 		embedded.Node.CanonicalDescription,
 		generatedBy,
 		embedded.Node.IsSelectable,
-		int16(depth),
+		depth,
 		embedded.Embedding,
 	)
 	if err != nil {
@@ -681,6 +765,9 @@ func validateExtraction(extracted *extractor.ExtractedListing) error {
 	if extracted.GeneratedBy == "" {
 		return fmt.Errorf("%w: missing generator provenance", ErrInvalidExtraction)
 	}
+	if len(extracted.GeneratedBy) > maxGeneratedByLength {
+		return fmt.Errorf("%w: generator provenance exceeds %d characters", ErrInvalidExtraction, maxGeneratedByLength)
+	}
 
 	leafName, err := validateCategoryPath(extracted.CategoryPath, extracted.SourceLocale)
 	if err != nil {
@@ -751,6 +838,17 @@ func normalizeAndValidateCategoryNode(
 	if node.CanonicalSlug == "" || node.LocalizedSlug == "" {
 		return fmt.Errorf("%w: category path node %d has no usable slug", ErrInvalidExtraction, index)
 	}
+	if len(node.CanonicalName) > maxCanonicalFieldLength || len(node.CanonicalSlug) > maxCanonicalFieldLength {
+		return fmt.Errorf(
+			"%w: category path node %d canonical name or slug exceeds %d characters",
+			ErrInvalidExtraction,
+			index,
+			maxCanonicalFieldLength,
+		)
+	}
+	if len(node.Locale) > maxLocaleLength {
+		return fmt.Errorf("%w: category path node %d locale exceeds %d characters", ErrInvalidExtraction, index, maxLocaleLength)
+	}
 	if !localePattern.MatchString(node.Locale) || node.Locale != sourceLocale {
 		return fmt.Errorf(
 			"%w: category path node %d locale %q does not match source locale %q",
@@ -785,6 +883,9 @@ func validateGigExtraction(extracted *extractor.ExtractedListing, leafName strin
 	}
 	if extracted.Gig.PayAmount != nil && *extracted.Gig.PayAmount < 0 {
 		return fmt.Errorf("%w: negative gig pay", ErrInvalidExtraction)
+	}
+	if len(extracted.Gig.PayCurrency) != 3 {
+		return fmt.Errorf("%w: gig currency must be exactly three characters", ErrInvalidExtraction)
 	}
 	return nil
 }
@@ -828,7 +929,7 @@ func writeCategoryCatalogLine(builder *strings.Builder, category Category) {
 	builder.WriteByte('\n')
 }
 
-func categoryIndent(depth int16) string {
+func categoryIndent(depth int) string {
 	if depth <= 0 {
 		return ""
 	}

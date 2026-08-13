@@ -99,10 +99,13 @@ Categories describe the offered/requested service, trade, or occupation—not th
 
 Embedded prompts live in `internal/prompter/prompts/`:
 
+- `moderation.txt`: contextual allow/reject decision for adult-only or prohibited marketplace content.
 - `category_path.txt`: source locale detection plus canonical English hierarchy and source-locale metadata.
 - `profession.txt`: structured gig/service details.
 
 `internal/prompter/loader.go` embeds the prompt files. `builder.go` injects the current active canonical catalog into the category-path prompt.
+
+Moderation is a separate AI call that runs before taxonomy work. The complete input is sent because Core limits profession text to 200 characters and listing descriptions to 2,000 characters. Only a successfully decoded explicit `reject` decision is a content rejection. Rate limits, quota/payment errors, timeouts, unavailable providers, malformed/empty responses, context cancellation, and exhausted fallback chains are retryable processing failures: they must not change listing status or emit a rejection event.
 
 Category extraction and details extraction are separate AI calls. The category-path response includes `source_locale`, canonical English fields, localized source-language fields, and `is_selectable` for every node. Listing processing runs both calls because it needs gig details; profession processing runs category-path extraction only and must not generate/discard gig details. Details extraction produces the listing title and gig details. Validation must reject malformed paths before persistence.
 
@@ -114,7 +117,7 @@ Configured providers are assembled in `cmd/worker/app.go`. Current fallback orde
 4. Mistral
 5. Nvidia
 
-Only fully configured providers are included. Staging loads Gemini, Groq, OpenRouter, Mistral, and Nvidia configuration from SSM; do not add a provider to the fallback order without also wiring and testing its staging parameter retrieval/mapping. `FallbackExtractor` tries providers sequentially, records provider/model provenance as `generated_by`, stops on success, and returns joined errors when all fail. Each provider attempt has a 25-second deadline and the whole fallback chain has a 75-second deadline. Provider-level errors, invalid responses, and per-provider timeouts allow the next configured provider to run; caller cancellation or exhaustion of the total fallback deadline stops the chain immediately. Keep these budgets below the worker's two-minute message deadline so embeddings, database work, and notification publication retain time to finish. Keep output token limits controlled; oversized `max_tokens` previously caused avoidable credit failures.
+Only fully configured providers are included. Staging loads Gemini, Groq, OpenRouter, Mistral, and Nvidia configuration from SSM; do not add a provider to the fallback order without also wiring and testing its staging parameter retrieval/mapping. `FallbackExtractor` tries providers sequentially, records provider/model provenance as `generated_by`, stops on success, and returns joined errors when all fail. Taxonomy/details attempts have a 25-second provider deadline and 75-second total deadline. Moderation uses a shorter 10-second provider deadline and 30-second total deadline. Provider-level errors, invalid responses, and per-provider timeouts allow the next configured provider to run; caller cancellation or exhaustion of the total fallback deadline stops the chain immediately. Keep combined budgets below the worker's two-minute message deadline so embeddings, database work, and notification publication retain time to finish. Keep output token limits controlled; oversized `max_tokens` previously caused avoidable credit failures.
 
 Prompts require JSON responses. OpenAI-compatible providers use JSON response format and temperature zero; Gemini requests JSON MIME output. Avoid brittle parsing hacks when prompt/schema validation can solve the issue cleanly.
 
@@ -171,15 +174,14 @@ Accepted SQS message types:
   "listing_id": "uuid",
   "author_id": "uuid",
   "description": "Musluğumu tamir edecek bir tesisatçı arıyorum",
-  "country_id": "optional-uuid",
+  "country_id": "uuid",
   "place_id": "optional-uuid"
 }
 ```
 
 Location rules:
 
-- `country_id` and `place_id` are optional UUIDs.
-- `place_id` requires `country_id`.
+- `country_id` is a required UUID under Core schema v18; `place_id` is optional.
 - Do not use or populate legacy `city_id` or `district_id`.
 - Do not reinterpret a place as necessarily a city/district; Core's `places` catalog supports arbitrary administrative levels and localities.
 - Core already persists listing location. The worker preserves event values and forwards them where needed; it does not translate them to legacy IDs.
@@ -193,17 +195,20 @@ base_category_id = NULL
 
 The worker must:
 
-1. Resolve active `gig` base-category UUID by slug.
-2. Extract/resolve the canonical hierarchy and source localization.
-3. Generate canonical embeddings.
-4. Start a transaction and lock the listing row.
-5. If already `OPEN`, do not mutate listing/category state again; reload the stored classification and continue to notification publication.
-6. While still `PROCESSING`, set `base_category_id` and `description_clean`.
-7. Reuse/create every category path node and ensure its source-locale localization.
-8. Attach only the final active selectable gig category through `listing_categories`.
-9. Upsert `gig_details`.
-10. Set the listing to `OPEN` only after all prerequisites exist.
-11. Commit, then publish notifications.
+1. Moderate the complete description.
+2. On explicit reject, atomically move `PROCESSING` to the existing terminal database status `FAILED`; do not create taxonomy/details data, then publish `content_rejected` after commit.
+3. On moderation error, leave the listing `PROCESSING`, emit nothing, and return a retryable error.
+4. On allow, resolve active `gig` base-category UUID by slug.
+5. Extract/resolve the canonical hierarchy and source localization.
+6. Generate canonical embeddings.
+7. Start a transaction and lock the listing row.
+8. If already `OPEN`, do not mutate listing/category state again; reload the stored classification and continue to notification publication.
+9. While still `PROCESSING`, set `base_category_id` and `description_clean`.
+10. Reuse/create every category path node and ensure its source-locale localization.
+11. Attach only the final active selectable gig category through `listing_categories`.
+12. Upsert `gig_details`.
+13. Set the listing to `OPEN` only after all prerequisites exist.
+14. Commit, then publish notifications.
 
 Category creation, localization writes, embedding writes, category association, typed details, and the final status change must remain atomic. Never expose an `OPEN` listing without an active gig base category, one selectable category association, and `gig_details`.
 
@@ -225,6 +230,8 @@ Core stores the latest `profession_request_id` on the user. Profession processin
 
 Profession processing uses `FallbackExtractor.ExtractCategoryPath`, not full listing extraction. It must not call the gig-details prompt because the profession workflow persists only the resolved category association.
 
+Profession content is moderated after the cheap initial stale-request check and before taxonomy work. Explicit rejection leaves the user's existing category unchanged and emits `content_rejected` with `subject_type=profession` and `subject_id=request_id`. Moderation failures are retryable and emit nothing.
+
 The final association must be an active, selectable category in the `gig` base category. A user has exactly one selected offered-service category.
 
 ## Emitted events
@@ -232,7 +239,8 @@ The final association must be an active, selectable category in the `gig` base c
 After a listing commits, and again on an `OPEN` replay, the worker publishes:
 
 - `listing_approved`: recipient, listing UUID, base-category slug, title, timestamp.
-- `gig_category_matched`: listing/gig UUID, category UUID, optional `country_id`, optional `place_id`, timestamp.
+- `gig_category_matched`: listing/gig UUID, category UUID, required `country_id`, optional `place_id`, timestamp.
+- `content_rejected`: recipient UUID, `listing` or `profession` subject type, subject UUID, stable reason code, timestamp. Never include the rejected raw content.
 
 Every emitted notification envelope includes `event_id` and `version`. `version` is currently `1`. Event IDs are deterministic for the same logical event so an `OPEN` replay publishes the same ID again: `listing_approved` is keyed by listing UUID and `gig_category_matched` by listing UUID plus category UUID. Downstream consumers should use `event_id` for idempotent handling of the worker's at-least-once publication semantics.
 
@@ -261,12 +269,16 @@ Notifications happen after the database commit. DB work is atomic, but event pub
 
 ## Database ownership and migrations
 
+The worker currently targets Core schema version 18.
+
 Migrations in `migrations/` define the worker-owned category domain:
 
 - `000001`: hierarchy, depth enforcement, sibling uniqueness.
 - `000002`: `generated_by` provenance.
 - `000003`: explicit `is_selectable`.
 - `000004`: canonical English columns and `category_localizations`.
+
+Core v18 uses PostgreSQL `INTEGER` for `categories.depth` (Go `int`), not `SMALLINT`/`int16`.
 
 The shared database also contains Core-owned tables such as `base_categories`, `listings`, `listing_categories`, `gig_details`, `users`, `user_categories`, `countries`, `places`, and `place_names`. Inspect current schema/migrations supplied by Core before changing SQL contracts. Do not assume old compatibility views or helper functions exist.
 
@@ -283,6 +295,12 @@ The user has stated that this worker owns category-related schema design, while 
 - Post-commit notifications preserve DB correctness. Re-publishing on `OPEN` replay closes the silent-loss window but accepts possible duplicate events. Introduce an outbox only if future requirements justify stronger delivery/deduplication guarantees.
 
 ## Recent implementation decisions
+
+### 2026-08-10 — Explicit AI content moderation for MVP
+
+- Previous situation: listing and profession content went directly into taxonomy extraction, with no adult/restricted-content decision.
+- Current situation: the worker moderates the complete bounded input first. A validated explicit rejection uses one of `sexual_content`, `alcohol`, `tobacco_nicotine`, or `controlled_substances`. Listings move from `PROCESSING` to the existing internal `FAILED` status and emit `content_rejected`; rejected profession requests leave the current user category unchanged and emit the same event keyed by request ID. Raw content is never emitted.
+- Why: rejection is sufficient for MVP, but dependency failures must never be mistaken for policy decisions. Rate limits, provider outages, malformed responses, timeouts, and fallback exhaustion remain retryable and produce neither status mutation nor rejection events. Moderation has a separate 10-second-per-provider/30-second-total budget so the subsequent 75-second taxonomy fallback still fits inside the two-minute message deadline.
 
 ### 2026-08-09 — Dependency and workflow trace spans
 

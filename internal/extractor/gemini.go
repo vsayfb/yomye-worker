@@ -26,6 +26,23 @@ func (g *GeminiExtractor) Generator() string {
 	return g.generatedBy
 }
 
+func (g *GeminiExtractor) Moderate(ctx context.Context, content string) (*ModerationResult, error) {
+	client, err := g.client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := g.generate(ctx, client, prompter.ModerationPrompt(), content)
+	if err != nil {
+		return nil, fmt.Errorf("moderate content: %w", err)
+	}
+	result, err := decodeModeration(raw)
+	if err != nil {
+		return nil, err
+	}
+	result.GeneratedBy = g.generatedBy
+	return result, nil
+}
+
 func (g *GeminiExtractor) client(ctx context.Context) (*genai.Client, error) {
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  g.cfg.APIKey,

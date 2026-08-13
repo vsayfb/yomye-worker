@@ -15,9 +15,12 @@ import (
 type fakeNotificationPublisher struct {
 	listingApprovedCalls int
 	categoryMatchedCalls int
+	contentRejectedCalls int
 	listingApproved      notification.ListingApprovedEnvelope
 	categoryMatched      notification.GigCategoryMatchedEventEnvelope
 	categoryMatchedErr   error
+	contentRejected      notification.ContentRejectedEnvelope
+	contentRejectedErr   error
 }
 
 func (f *fakeNotificationPublisher) PublishListingApproved(
@@ -36,6 +39,15 @@ func (f *fakeNotificationPublisher) PublishGigCategoryMatched(
 	f.categoryMatchedCalls++
 	f.categoryMatched = event
 	return f.categoryMatchedErr
+}
+
+func (f *fakeNotificationPublisher) PublishContentRejected(
+	_ context.Context,
+	event notification.ContentRejectedEnvelope,
+) error {
+	f.contentRejectedCalls++
+	f.contentRejected = event
+	return f.contentRejectedErr
 }
 
 func TestGigProcessor_AlreadyOpenReplayRepublishesNotifications(t *testing.T) {
@@ -90,6 +102,7 @@ func TestGigProcessor_AlreadyOpenReplayRepublishesNotifications(t *testing.T) {
 		ListingID:   listingID,
 		Description: "Need a plumber",
 		AuthorID:    authorID,
+		CountryID:   uuid.New(),
 	})
 	if err != nil {
 		t.Fatalf("marshal listing message: %v", err)
@@ -176,6 +189,7 @@ func TestGigProcessor_AlreadyOpenPublishFailureCanRecoverOnReplay(t *testing.T) 
 		ListingID:   listingID,
 		Description: "Need a plumber",
 		AuthorID:    authorID,
+		CountryID:   uuid.New(),
 	})
 	if err != nil {
 		t.Fatalf("marshal listing message: %v", err)

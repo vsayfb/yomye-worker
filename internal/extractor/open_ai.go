@@ -36,6 +36,19 @@ func (o *OpenAIExtractor) Generator() string {
 	return o.generatedBy
 }
 
+func (o *OpenAIExtractor) Moderate(ctx context.Context, content string) (*ModerationResult, error) {
+	raw, err := o.complete(ctx, prompter.ModerationPrompt(), content)
+	if err != nil {
+		return nil, fmt.Errorf("moderate content: %w", err)
+	}
+	result, err := decodeModeration(raw)
+	if err != nil {
+		return nil, err
+	}
+	result.GeneratedBy = o.generatedBy
+	return result, nil
+}
+
 func (o *OpenAIExtractor) Extract(
 	ctx context.Context,
 	description, baseCategorySlug, catalog string,

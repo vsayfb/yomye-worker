@@ -34,10 +34,13 @@ func (f *FallbackExtractor) Extract(
 	ctx context.Context,
 	description, baseCategorySlug, catalog string,
 ) (*ExtractedListing, error) {
-	return f.extractWithFallback(
+	return runWithFallback(
+		f,
 		ctx,
 		"AI extraction",
 		"all extractors failed",
+		f.providerTimeout,
+		f.totalTimeout,
 		func(attemptCtx context.Context, e Extractor) (*ExtractedListing, error) {
 			return e.Extract(attemptCtx, description, baseCategorySlug, catalog)
 		},
@@ -48,44 +51,75 @@ func (f *FallbackExtractor) ExtractCategoryPath(
 	ctx context.Context,
 	description, baseCategorySlug, catalog string,
 ) (*ExtractedListing, error) {
-	return f.extractWithFallback(
+	return runWithFallback(
+		f,
 		ctx,
 		"AI category extraction",
 		"all category extractors failed",
+		f.providerTimeout,
+		f.totalTimeout,
 		func(attemptCtx context.Context, e Extractor) (*ExtractedListing, error) {
 			return e.ExtractCategoryPath(attemptCtx, description, baseCategorySlug, catalog)
 		},
 	)
 }
 
-func (f *FallbackExtractor) extractWithFallback(
+func (f *FallbackExtractor) Moderate(
+	ctx context.Context,
+	content string,
+) (*ModerationResult, error) {
+	return runWithFallback(
+		f,
+		ctx,
+		"content moderation",
+		"all moderation providers failed",
+		runtimepolicy.ModerationProviderAttemptTimeout,
+		runtimepolicy.ModerationFallbackTotalTimeout,
+		func(attemptCtx context.Context, e Extractor) (*ModerationResult, error) {
+			result, err := e.Moderate(attemptCtx, content)
+			if err != nil {
+				return nil, err
+			}
+			if err := validateModerationResult(result); err != nil {
+				return nil, err
+			}
+			result.GeneratedBy = e.Generator()
+			return result, nil
+		},
+	)
+}
+
+func runWithFallback[T any](
+	f *FallbackExtractor,
 	ctx context.Context,
 	operation string,
 	allFailedMessage string,
-	extract func(context.Context, Extractor) (*ExtractedListing, error),
-) (result *ExtractedListing, resultErr error) {
+	providerTimeout time.Duration,
+	totalTimeout time.Duration,
+	operationCall func(context.Context, Extractor) (T, error),
+) (result T, resultErr error) {
 	ctx, span := extractorTracer.Start(
 		ctx,
 		"ai.fallback",
 		trace.WithAttributes(
 			attribute.String("ai.operation", operation),
 			attribute.Int("ai.provider_count", len(f.extractors)),
-			attribute.Int64("ai.total_timeout_ms", f.totalTimeout.Milliseconds()),
+			attribute.Int64("ai.total_timeout_ms", totalTimeout.Milliseconds()),
 		),
 	)
 	defer func() { finishExtractorSpan(span, resultErr) }()
 
 	if len(f.extractors) == 0 {
-		return nil, fmt.Errorf("no extractors configured")
+		return result, fmt.Errorf("no extractors configured")
 	}
 
-	totalCtx, cancelTotal := context.WithTimeout(ctx, f.totalTimeout)
+	totalCtx, cancelTotal := context.WithTimeout(ctx, totalTimeout)
 	defer cancelTotal()
 
 	var errs []error
 
 	for index, e := range f.extractors {
-		attemptCtx, cancelAttempt := context.WithTimeout(totalCtx, f.providerTimeout)
+		attemptCtx, cancelAttempt := context.WithTimeout(totalCtx, providerTimeout)
 		attemptCtx, attemptSpan := extractorTracer.Start(
 			attemptCtx,
 			"ai.provider.attempt",
@@ -94,10 +128,10 @@ func (f *FallbackExtractor) extractWithFallback(
 				attribute.String("ai.operation", operation),
 				attribute.String("ai.generator", e.Generator()),
 				attribute.Int("ai.attempt", index+1),
-				attribute.Int64("ai.provider_timeout_ms", f.providerTimeout.Milliseconds()),
+				attribute.Int64("ai.provider_timeout_ms", providerTimeout.Milliseconds()),
 			),
 		)
-		res, err := extract(attemptCtx, e)
+		res, err := operationCall(attemptCtx, e)
 		cancelAttempt()
 		finishExtractorSpan(attemptSpan, err)
 
@@ -113,13 +147,13 @@ func (f *FallbackExtractor) extractWithFallback(
 		errs = append(errs, fmt.Errorf("%s: %w", e.Generator(), err))
 
 		if ctx.Err() != nil {
-			return nil, ctx.Err()
+			return result, ctx.Err()
 		}
 		if totalCtx.Err() != nil {
-			return nil, fmt.Errorf(
+			return result, fmt.Errorf(
 				"%s exceeded total fallback deadline %s: %w",
 				operation,
-				f.totalTimeout,
+				totalTimeout,
 				errors.Join(errs...),
 			)
 		}
@@ -137,7 +171,7 @@ func (f *FallbackExtractor) extractWithFallback(
 		}
 	}
 
-	return nil, fmt.Errorf("%s: %w", allFailedMessage, errors.Join(errs...))
+	return result, fmt.Errorf("%s: %w", allFailedMessage, errors.Join(errs...))
 }
 
 func finishExtractorSpan(span trace.Span, err error) {

@@ -66,7 +66,7 @@ func TestProfessionProcessor_LockedCheckCatchesRaceAfterEarlyCheckPasses(t *test
 		},
 	})
 
-	proc := NewProfessionProcessor(repo, &fakeEmbeddingClient{}, fallback, &config.Config{})
+	proc := NewProfessionProcessor(repo, &fakeEmbeddingClient{}, fallback, &fakeNotificationPublisher{}, &config.Config{})
 
 	msg := NewProfession{RequestID: requestID, AuthorID: userID, Description: "graphic designer"}
 	body, err := json.Marshal(msg)
@@ -132,7 +132,7 @@ func TestProfessionProcessor_LinksCategoryWhenNotStale(t *testing.T) {
 		},
 	})
 
-	proc := NewProfessionProcessor(repo, &fakeEmbeddingClient{}, fallback, &config.Config{})
+	proc := NewProfessionProcessor(repo, &fakeEmbeddingClient{}, fallback, &fakeNotificationPublisher{}, &config.Config{})
 
 	msg := NewProfession{RequestID: requestID, AuthorID: userID, Description: "graphic designer"}
 	body, err := json.Marshal(msg)

@@ -40,7 +40,7 @@ func (m *taxonomyMemory) repository() *fakeRepository {
 			parentID *uuid.UUID,
 			canonicalName, canonicalSlug, canonicalDescription, _ string,
 			isSelectable bool,
-			depth int16,
+			depth int,
 			_ []float32,
 		) (*Category, error) {
 			category := &Category{

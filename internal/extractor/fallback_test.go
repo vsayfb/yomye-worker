@@ -16,11 +16,19 @@ import (
 
 type fallbackTestExtractor struct {
 	generator             string
+	moderateFn            func(context.Context) (*ModerationResult, error)
 	extractFn             func(context.Context) (*ExtractedListing, error)
 	extractCategoryPathFn func(context.Context) (*ExtractedListing, error)
 }
 
 func (f *fallbackTestExtractor) Generator() string { return f.generator }
+
+func (f *fallbackTestExtractor) Moderate(ctx context.Context, _ string) (*ModerationResult, error) {
+	if f.moderateFn != nil {
+		return f.moderateFn(ctx)
+	}
+	return &ModerationResult{Decision: ModerationAllow, GeneratedBy: f.generator}, nil
+}
 
 func (f *fallbackTestExtractor) Extract(
 	ctx context.Context,
@@ -238,6 +246,64 @@ func TestFallbackExtractor_EmitsFallbackAndProviderAttemptSpans(t *testing.T) {
 		if attempt.Parent().SpanID() != fallbackSpan.SpanContext().SpanID() {
 			t.Fatalf("attempt %q is not a child of fallback span", spanAttribute(attempt.Attributes(), "ai.generator"))
 		}
+	}
+}
+
+func TestFallbackExtractor_ModerationFailureDoesNotBecomeRejection(t *testing.T) {
+	provider := &fallbackTestExtractor{
+		generator: "limited:model",
+		moderateFn: func(context.Context) (*ModerationResult, error) {
+			return nil, ErrRateLimited
+		},
+	}
+
+	result, err := NewFallbackExtractor(provider).Moderate(context.Background(), "content")
+	if err == nil {
+		t.Fatalf("Moderate() = %#v, want provider failure", result)
+	}
+	if result != nil {
+		t.Fatalf("Moderate() result = %#v, want nil", result)
+	}
+}
+
+func TestFallbackExtractor_InvalidSuccessfulModerationResponseIsFailure(t *testing.T) {
+	provider := &fallbackTestExtractor{
+		generator: "broken:model",
+		moderateFn: func(context.Context) (*ModerationResult, error) {
+			return nil, nil
+		},
+	}
+
+	result, err := NewFallbackExtractor(provider).Moderate(context.Background(), "content")
+	if err == nil || result != nil {
+		t.Fatalf("Moderate() = (%#v, %v), want invalid provider response failure", result, err)
+	}
+}
+
+func TestFallbackExtractor_ModerationFallsBackToExplicitReject(t *testing.T) {
+	first := &fallbackTestExtractor{
+		generator: "limited:model",
+		moderateFn: func(context.Context) (*ModerationResult, error) {
+			return nil, ErrRateLimited
+		},
+	}
+	second := &fallbackTestExtractor{
+		generator: "healthy:model",
+		moderateFn: func(context.Context) (*ModerationResult, error) {
+			return &ModerationResult{
+				Decision:    ModerationReject,
+				Reason:      "controlled_substances",
+				GeneratedBy: "healthy:model",
+			}, nil
+		},
+	}
+
+	result, err := NewFallbackExtractor(first, second).Moderate(context.Background(), "content")
+	if err != nil {
+		t.Fatalf("Moderate() error = %v", err)
+	}
+	if result.Decision != ModerationReject || result.GeneratedBy != "healthy:model" {
+		t.Fatalf("Moderate() = %#v", result)
 	}
 }
 

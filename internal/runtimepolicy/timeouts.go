@@ -9,8 +9,10 @@ const (
 	MessageProcessingTimeout = 2 * time.Minute
 	MessageVisibilityTimeout = 3 * time.Minute
 
-	AIProviderAttemptTimeout = 25 * time.Second
-	AIFallbackTotalTimeout   = 75 * time.Second
+	AIProviderAttemptTimeout         = 25 * time.Second
+	AIFallbackTotalTimeout           = 75 * time.Second
+	ModerationProviderAttemptTimeout = 10 * time.Second
+	ModerationFallbackTotalTimeout   = 30 * time.Second
 
 	ApplicationShutdownTimeout = 10 * time.Second
 )

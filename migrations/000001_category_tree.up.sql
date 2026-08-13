@@ -3,7 +3,7 @@ BEGIN;
 ALTER TABLE categories
     ADD COLUMN parent_id UUID,
     ADD COLUMN description TEXT,
-    ADD COLUMN depth SMALLINT NOT NULL DEFAULT 0,
+    ADD COLUMN depth INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE;
 
 UPDATE categories
@@ -53,7 +53,7 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    parent_depth SMALLINT;
+    parent_depth INTEGER;
 BEGIN
     IF NEW.parent_id IS NULL THEN
         NEW.depth := 0;

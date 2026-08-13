@@ -3,6 +3,7 @@ package processor
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/vsayfb/gig-platform-categorization-service/internal/extractor"
@@ -82,6 +83,12 @@ func TestValidateExtraction_GigTableDriven(t *testing.T) {
 			mutate: func(e *extractor.ExtractedListing) { e.CategoryPath[0].CanonicalDescription = "" },
 		},
 		{
+			name: "canonical name exceeds schema limit",
+			mutate: func(e *extractor.ExtractedListing) {
+				e.CategoryPath[0].CanonicalName = strings.Repeat("a", maxCanonicalFieldLength+1)
+			},
+		},
+		{
 			name: "duplicate adjacent categories",
 			mutate: func(e *extractor.ExtractedListing) {
 				e.CategoryPath = []extractor.ExtractedCategoryNode{
@@ -108,6 +115,10 @@ func TestValidateExtraction_GigTableDriven(t *testing.T) {
 				neg := -5.0
 				e.Gig.PayAmount = &neg
 			},
+		},
+		{
+			name:   "gig invalid currency length",
+			mutate: func(e *extractor.ExtractedListing) { e.Gig.PayCurrency = "US" },
 		},
 	}
 

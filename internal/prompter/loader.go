@@ -11,6 +11,9 @@ var categoryPathPrompt string
 //go:embed prompts/profession.txt
 var professionPrompt string
 
+//go:embed prompts/moderation.txt
+var moderationPrompt string
+
 func Init(promptFile string) error {
 	if promptFile == "" {
 		return nil

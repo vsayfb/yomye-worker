@@ -11,6 +11,7 @@ import (
 type Publisher interface {
 	PublishListingApproved(context.Context, ListingApprovedEnvelope) error
 	PublishGigCategoryMatched(context.Context, GigCategoryMatchedEventEnvelope) error
+	PublishContentRejected(context.Context, ContentRejectedEnvelope) error
 }
 
 type NotificationEventType string
@@ -20,6 +21,14 @@ const (
 
 	EventListingApproved    NotificationEventType = "listing_approved"
 	EventGigCategoryMatched NotificationEventType = "gig_category_matched"
+	EventContentRejected    NotificationEventType = "content_rejected"
+)
+
+type RejectedSubjectType string
+
+const (
+	RejectedSubjectListing    RejectedSubjectType = "listing"
+	RejectedSubjectProfession RejectedSubjectType = "profession"
 )
 
 type ListingApprovedEnvelope struct {
@@ -40,7 +49,7 @@ type ListingApprovedEvent struct {
 type GigCategoryMatchedEvent struct {
 	GigID      uuid.UUID  `json:"gig_id"`
 	CategoryID uuid.UUID  `json:"category_id"`
-	CountryID  *uuid.UUID `json:"country_id,omitempty"`
+	CountryID  uuid.UUID  `json:"country_id"`
 	PlaceID    *uuid.UUID `json:"place_id,omitempty"`
 	OccurredAt time.Time  `json:"occurred_at"`
 }
@@ -50,6 +59,21 @@ type GigCategoryMatchedEventEnvelope struct {
 	EventID uuid.UUID               `json:"event_id"`
 	Version int                     `json:"version"`
 	Payload GigCategoryMatchedEvent `json:"payload"`
+}
+
+type ContentRejectedEnvelope struct {
+	Type    NotificationEventType `json:"type"`
+	EventID uuid.UUID             `json:"event_id"`
+	Version int                   `json:"version"`
+	Payload ContentRejectedEvent  `json:"payload"`
+}
+
+type ContentRejectedEvent struct {
+	RecipientID uuid.UUID           `json:"recipient_id"`
+	SubjectType RejectedSubjectType `json:"subject_type"`
+	SubjectID   uuid.UUID           `json:"subject_id"`
+	Reason      string              `json:"reason"`
+	OccurredAt  time.Time           `json:"occurred_at"`
 }
 
 // StableEventID returns the same ID for repeated publication of the same

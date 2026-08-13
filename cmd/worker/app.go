@@ -207,7 +207,7 @@ func getApp(ctx context.Context) (*App, error) {
 
 		gigProcessor := processor.NewGigProcessor(processorRepo, embeddingClient, fallback, publisher, cfg)
 
-		professionProcessor := processor.NewProfessionProcessor(processorRepo, embeddingClient, fallback, cfg)
+		professionProcessor := processor.NewProfessionProcessor(processorRepo, embeddingClient, fallback, publisher, cfg)
 
 		app = &App{
 			cfg: cfg,

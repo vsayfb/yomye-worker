@@ -37,6 +37,58 @@ type ExtractedListing struct {
 	GeneratedBy      string                  `json:"-"`
 }
 
+type ModerationDecision string
+
+const (
+	ModerationAllow  ModerationDecision = "allow"
+	ModerationReject ModerationDecision = "reject"
+)
+
+type ModerationResult struct {
+	Decision    ModerationDecision `json:"decision"`
+	Reason      string             `json:"reason"`
+	GeneratedBy string             `json:"-"`
+}
+
+var moderationReasons = map[string]struct{}{
+	"sexual_content":        {},
+	"alcohol":               {},
+	"tobacco_nicotine":      {},
+	"controlled_substances": {},
+}
+
+func decodeModeration(raw string) (*ModerationResult, error) {
+	var result ModerationResult
+	if err := decodeJSONObject(raw, &result); err != nil {
+		return nil, fmt.Errorf("decode moderation: %w", err)
+	}
+	if err := validateModerationResult(&result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+func validateModerationResult(result *ModerationResult) error {
+	if result == nil {
+		return fmt.Errorf("decode moderation: empty result")
+	}
+	result.Decision = ModerationDecision(strings.ToLower(strings.TrimSpace(string(result.Decision))))
+	result.Reason = strings.ToLower(strings.TrimSpace(result.Reason))
+	switch result.Decision {
+	case ModerationAllow:
+		if result.Reason != "" {
+			return fmt.Errorf("decode moderation: allow decision must not include a reason")
+		}
+	case ModerationReject:
+		if _, ok := moderationReasons[result.Reason]; !ok {
+			return fmt.Errorf("decode moderation: invalid rejection reason %q", result.Reason)
+		}
+	default:
+		return fmt.Errorf("decode moderation: invalid decision %q", result.Decision)
+	}
+
+	return nil
+}
+
 type categoryPathResult struct {
 	SourceLocale string                  `json:"source_locale"`
 	CategoryPath []ExtractedCategoryNode `json:"category_path"`
@@ -130,6 +182,7 @@ type EmbeddingClient interface {
 
 type Extractor interface {
 	Generator() string
+	Moderate(ctx context.Context, content string) (*ModerationResult, error)
 	ExtractCategoryPath(ctx context.Context, description, baseCategorySlug, catalog string) (*ExtractedListing, error)
 	Extract(ctx context.Context, description, baseCategorySlug, catalog string) (*ExtractedListing, error)
 }

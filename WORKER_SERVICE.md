@@ -19,8 +19,10 @@ AWS SQS: categorization queue
    |
    v
 Categorization Worker
-   |
-   +--> PostgreSQL: load active category taxonomy
+	|
+	+--> AI providers: moderate restricted/adult-only content
+	|
+	+--> PostgreSQL: load active category taxonomy
    |
    +--> AI providers: understand text and propose category path
    |
@@ -32,6 +34,7 @@ Categorization Worker
             |
             +--> listing_approved
             +--> gig_category_matched
+			+--> content_rejected
 ```
 
 The service is designed around three important ideas:
@@ -47,6 +50,7 @@ The service is designed around three important ideas:
 The worker owns the following behavior:
 
 - Consume categorization events from SQS.
+- Moderate complete listing/profession text before taxonomy work.
 - Detect the service/profession represented by arbitrary user text.
 - Detect the source language/locale.
 - Resolve the active `gig` base category from PostgreSQL.
@@ -60,6 +64,7 @@ The worker owns the following behavior:
 - Maintain source-language category localizations.
 - Attach one final selectable category to a listing or user profession.
 - Persist gig details and transition listings from `PROCESSING` to `OPEN`.
+- On an explicit valid moderation rejection, transition a listing from `PROCESSING` to `FAILED` without taxonomy writes.
 - Publish downstream notification/search events.
 - Provide retry-safe/idempotent behavior for SQS redelivery.
 - Emit metrics, traces, and structured logs.
@@ -134,7 +139,7 @@ Current listing event:
   "listing_id": "uuid",
   "author_id": "uuid",
   "description": "Musluğumu tamir edecek bir tesisatçı arıyorum",
-  "country_id": "optional-uuid",
+  "country_id": "uuid",
   "place_id": "optional-uuid"
 }
 ```
@@ -144,7 +149,8 @@ Validation rules:
 - `listing_id` is required.
 - `author_id` is required.
 - `description` must not be empty.
-- `place_id` may only be supplied when `country_id` is also supplied.
+- `country_id` is required by Core schema v18.
+- `place_id` is optional.
 
 The listing is expected to already exist in Core with approximately:
 
@@ -268,8 +274,14 @@ ListingCreated
     |
     v
 Validate event contract
-    |
-    v
+	|
+	v
+AI content moderation
+	|
+	+--> explicit reject: mark FAILED, publish content_rejected, stop
+	+--> provider/decode failure: retry with no mutation/event
+	|
+	v allow
 Resolve active "gig" base category
     |
     v
@@ -885,9 +897,13 @@ The worker:
 
 This behavior is important for recovery after a database commit followed by an SQS publication failure.
 
+### `FAILED`
+
+For this worker, `FAILED` is the existing internal terminal status used for an explicit validated content-moderation rejection. Moderation dependency failures never set it. A rejected listing does not create categories, associations, embeddings, or `gig_details`.
+
 ### Other states
 
-A non-`PROCESSING` and non-`OPEN` listing is treated as non-processable and returns an error.
+A state other than `PROCESSING`, `OPEN`, or the moderation-rejection `FAILED` state is non-processable.
 
 ---
 
@@ -944,7 +960,7 @@ The final profession concept is tied to the resolved category leaf rather than a
 
 # Outbound Events
 
-After the database transaction commits, listing processing emits two events to the notification SQS queue.
+After a successful classification transaction commits, listing processing emits two approval/match events. An explicit listing or profession moderation rejection emits `content_rejected` instead.
 
 ## `listing_approved`
 
@@ -973,12 +989,31 @@ After the database transaction commits, listing processing emits two events to t
   "payload": {
     "gig_id": "uuid",
     "category_id": "uuid",
-    "country_id": "optional-uuid",
+    "country_id": "uuid",
     "place_id": "optional-uuid",
     "occurred_at": "2026-08-09T00:00:00Z"
   }
 }
 ```
+
+## `content_rejected`
+
+```json
+{
+  "type": "content_rejected",
+  "event_id": "deterministic-uuid",
+  "version": 1,
+  "payload": {
+    "recipient_id": "uuid",
+    "subject_type": "listing",
+    "subject_id": "uuid",
+    "reason": "alcohol",
+    "occurred_at": "2026-08-10T00:00:00Z"
+  }
+}
+```
+
+`subject_type` is `listing` or `profession`. Reasons are `sexual_content`, `alcohol`, `tobacco_nicotine`, or `controlled_substances`. Raw rejected content is never emitted. A deterministic `event_id` makes rejection-event replay safe for idempotent consumers.
 
 ---
 
@@ -1040,8 +1075,14 @@ Validate event
     |
     v
 Cheap stale request_id check
-    |
-    v
+	|
+	v
+AI content moderation
+	|
+	+--> explicit reject: keep existing user category, publish content_rejected, stop
+	+--> provider/decode failure: retry with no mutation/event
+	|
+	v allow
 Resolve gig base category
     |
     v

@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/extractor"
+	"github.com/vsayfb/gig-platform-categorization-service/internal/notification"
 	"github.com/vsayfb/gig-platform-categorization-service/pkg/metrics"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -22,23 +23,26 @@ const maxProfessionCategoryPathDepth = 4
 var ErrInvalidProfessionExtraction = errors.New("invalid profession extraction")
 
 type ProfessionProcessor struct {
-	repo            Repository
-	embeddingClient EmbeddingClient
-	fallback        *extractor.FallbackExtractor
-	cfg             *config.Config
+	repo                  Repository
+	embeddingClient       EmbeddingClient
+	fallback              *extractor.FallbackExtractor
+	notificationPublisher notification.Publisher
+	cfg                   *config.Config
 }
 
 func NewProfessionProcessor(
 	repo Repository,
 	embeddingClient EmbeddingClient,
 	fallback *extractor.FallbackExtractor,
+	notificationPublisher notification.Publisher,
 	cfg *config.Config,
 ) *ProfessionProcessor {
 	return &ProfessionProcessor{
-		repo:            repo,
-		embeddingClient: embeddingClient,
-		fallback:        fallback,
-		cfg:             cfg,
+		repo:                  repo,
+		embeddingClient:       embeddingClient,
+		fallback:              fallback,
+		notificationPublisher: notificationPublisher,
+		cfg:                   cfg,
 	}
 }
 
@@ -98,6 +102,34 @@ func (s *ProfessionProcessor) Process(ctx context.Context, record Message) (err 
 		logIgnoredProfessionEvent(ctx, msg, currentRequestID, userExists, "initial-check")
 		span.SetStatus(codes.Ok, "stale profession event ignored")
 		return nil
+	}
+
+	moderation, err := s.fallback.Moderate(ctx, msg.Description)
+	if err != nil {
+		return fmt.Errorf("moderate profession content: %w", err)
+	}
+	trace.SpanFromContext(ctx).SetAttributes(
+		attribute.String("moderation.decision", string(moderation.Decision)),
+		attribute.String("moderation.generator", moderation.GeneratedBy),
+	)
+	if moderation.Decision == extractor.ModerationReject {
+		trace.SpanFromContext(ctx).SetAttributes(attribute.String("moderation.reason", moderation.Reason))
+		slog.InfoContext(
+			ctx,
+			"profession content rejected",
+			"request_id", msg.RequestID,
+			"author_id", msg.AuthorID,
+			"reason", moderation.Reason,
+			"generated_by", moderation.GeneratedBy,
+		)
+		return publishContentRejected(
+			ctx,
+			s.notificationPublisher,
+			msg.AuthorID,
+			notification.RejectedSubjectProfession,
+			msg.RequestID,
+			moderation.Reason,
+		)
 	}
 
 	slog.InfoContext(
@@ -305,7 +337,7 @@ func (s *ProfessionProcessor) resolveProfessionCategoryNode(
 			embedded.node.CanonicalDescription,
 			generatedBy,
 			embedded.node.IsSelectable,
-			int16(depth),
+			depth,
 			embedded.embedding,
 		)
 		if err != nil {
@@ -382,6 +414,9 @@ func validateProfessionExtraction(extracted *extractor.ExtractedListing) error {
 	extracted.GeneratedBy = strings.TrimSpace(extracted.GeneratedBy)
 	if extracted.GeneratedBy == "" {
 		return fmt.Errorf("%w: missing generator provenance", ErrInvalidProfessionExtraction)
+	}
+	if len(extracted.GeneratedBy) > maxGeneratedByLength {
+		return fmt.Errorf("%w: generator provenance exceeds %d characters", ErrInvalidProfessionExtraction, maxGeneratedByLength)
 	}
 
 	if len(extracted.CategoryPath) == 0 {

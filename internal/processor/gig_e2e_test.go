@@ -25,12 +25,13 @@ func TestGigProcessor_E2E_ClassifiesAndOpensListing(t *testing.T) {
 
 	description := "Experienced freelance logo and brand identity designer available for short-term gigs. " +
 		"Fixed price $150, delivered within 3 days, unlimited revisions."
-	listingID := env.seedListing(t, ctx, description)
+	listingID, countryID := env.seedListing(t, ctx, description)
 
 	msg := ListingCreatedMessage{
 		ListingID:   listingID,
 		Description: description,
 		AuthorID:    uuid.New(),
+		CountryID:   countryID,
 	}
 	body, err := json.Marshal(msg)
 	if err != nil {

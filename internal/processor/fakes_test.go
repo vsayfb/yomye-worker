@@ -20,8 +20,9 @@ type fakeRepository struct {
 	resolveBaseCategoryFn          func(ctx context.Context, slug string) (uuid.UUID, error)
 	listActiveCategoriesFn         func(ctx context.Context, baseCategoryID uuid.UUID) ([]Category, error)
 	classifyListingFn              func(ctx context.Context, listingID, baseCategoryID uuid.UUID, descriptionClean string) error
+	rejectListingFn                func(ctx context.Context, listingID uuid.UUID) error
 	findCategoryFn                 func(ctx context.Context, baseCategoryID uuid.UUID, parentID *uuid.UUID, canonicalName, canonicalSlug string, embedding []float32) (*Category, error)
-	createCategoryFn               func(ctx context.Context, baseCategoryID uuid.UUID, parentID *uuid.UUID, name, slug, description, generatedBy string, isSelectable bool, depth int16, embedding []float32) (*Category, error)
+	createCategoryFn               func(ctx context.Context, baseCategoryID uuid.UUID, parentID *uuid.UUID, name, slug, description, generatedBy string, isSelectable bool, depth int, embedding []float32) (*Category, error)
 	promoteCategorySelectableFn    func(ctx context.Context, categoryID, baseCategoryID uuid.UUID) (*Category, error)
 	ensureCategoryLocalizationFn   func(ctx context.Context, localization CategoryLocalization) error
 	attachCategoryFn               func(ctx context.Context, listingID, categoryID, baseCategoryID uuid.UUID) error
@@ -58,6 +59,13 @@ func (f *fakeRepository) ClassifyListing(ctx context.Context, listingID, baseCat
 	return f.classifyListingFn(ctx, listingID, baseCategoryID, descriptionClean)
 }
 
+func (f *fakeRepository) RejectListing(ctx context.Context, listingID uuid.UUID) error {
+	if f.rejectListingFn != nil {
+		return f.rejectListingFn(ctx, listingID)
+	}
+	return nil
+}
+
 func (f *fakeRepository) FindCategory(ctx context.Context, baseCategoryID uuid.UUID, parentID *uuid.UUID, canonicalName, canonicalSlug string, embedding []float32) (*Category, error) {
 	return f.findCategoryFn(ctx, baseCategoryID, parentID, canonicalName, canonicalSlug, embedding)
 }
@@ -69,7 +77,7 @@ func (f *fakeRepository) EnsureCategoryLocalization(ctx context.Context, localiz
 	return nil
 }
 
-func (f *fakeRepository) CreateCategory(ctx context.Context, baseCategoryID uuid.UUID, parentID *uuid.UUID, name, slug, description, generatedBy string, isSelectable bool, depth int16, embedding []float32) (*Category, error) {
+func (f *fakeRepository) CreateCategory(ctx context.Context, baseCategoryID uuid.UUID, parentID *uuid.UUID, name, slug, description, generatedBy string, isSelectable bool, depth int, embedding []float32) (*Category, error) {
 	return f.createCategoryFn(ctx, baseCategoryID, parentID, name, slug, description, generatedBy, isSelectable, depth, embedding)
 }
 
@@ -117,8 +125,19 @@ func (f *fakeRepository) UpsertUserProfessionCategory(ctx context.Context, userI
 // network access.
 type fakeExtractor struct {
 	generator           string
+	moderate            func(ctx context.Context, content string) (*extractor.ModerationResult, error)
 	extract             func(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error)
 	extractCategoryPath func(ctx context.Context, description, baseCategorySlug, catalog string) (*extractor.ExtractedListing, error)
+}
+
+func (f *fakeExtractor) Moderate(ctx context.Context, content string) (*extractor.ModerationResult, error) {
+	if f.moderate != nil {
+		return f.moderate(ctx, content)
+	}
+	return &extractor.ModerationResult{
+		Decision:    extractor.ModerationAllow,
+		GeneratedBy: f.Generator(),
+	}, nil
 }
 
 func (f *fakeExtractor) Generator() string {

@@ -60,6 +60,42 @@ func TestDecodeCategoryPath(t *testing.T) {
 	}
 }
 
+func TestDecodeModerationAcceptsOnlyExplicitValidDecisions(t *testing.T) {
+	tests := []struct {
+		name         string
+		raw          string
+		wantDecision ModerationDecision
+		wantReason   string
+		wantErr      bool
+	}{
+		{name: "allow", raw: `{"decision":"allow","reason":""}`, wantDecision: ModerationAllow},
+		{name: "reject", raw: `{"decision":"reject","reason":"alcohol"}`, wantDecision: ModerationReject, wantReason: "alcohol"},
+		{name: "unknown decision", raw: `{"decision":"review","reason":""}`, wantErr: true},
+		{name: "reject without reason", raw: `{"decision":"reject","reason":""}`, wantErr: true},
+		{name: "reject with unknown reason", raw: `{"decision":"reject","reason":"rate_limited"}`, wantErr: true},
+		{name: "allow with reason", raw: `{"decision":"allow","reason":"alcohol"}`, wantErr: true},
+		{name: "malformed", raw: `not json`, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := decodeModeration(tt.raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("decodeModeration() = %#v, want error", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("decodeModeration() error = %v", err)
+			}
+			if got.Decision != tt.wantDecision || got.Reason != tt.wantReason {
+				t.Fatalf("decodeModeration() = %#v", got)
+			}
+		})
+	}
+}
+
 func TestDecodeCategoryPathRejectsIncompleteLocalization(t *testing.T) {
 	t.Parallel()
 

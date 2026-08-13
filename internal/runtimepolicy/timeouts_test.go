@@ -27,6 +27,18 @@ func TestRuntimeBudgetsRemainInternallyConsistent(t *testing.T) {
 	if AIFallbackTotalTimeout >= MessageProcessingTimeout {
 		t.Fatalf("fallback timeout %s must leave room inside message timeout %s", AIFallbackTotalTimeout, MessageProcessingTimeout)
 	}
+	if ModerationProviderAttemptTimeout != 10*time.Second {
+		t.Fatalf("moderation provider timeout = %s, want 10s", ModerationProviderAttemptTimeout)
+	}
+	if ModerationFallbackTotalTimeout != 30*time.Second {
+		t.Fatalf("moderation fallback timeout = %s, want 30s", ModerationFallbackTotalTimeout)
+	}
+	if ModerationProviderAttemptTimeout >= ModerationFallbackTotalTimeout {
+		t.Fatalf("moderation provider timeout %s must be lower than total %s", ModerationProviderAttemptTimeout, ModerationFallbackTotalTimeout)
+	}
+	if ModerationFallbackTotalTimeout+AIFallbackTotalTimeout >= MessageProcessingTimeout {
+		t.Fatalf("AI budgets %s + %s must leave room inside message timeout %s", ModerationFallbackTotalTimeout, AIFallbackTotalTimeout, MessageProcessingTimeout)
+	}
 	if ApplicationShutdownTimeout != 10*time.Second {
 		t.Fatalf("shutdown timeout = %s, want 10s", ApplicationShutdownTimeout)
 	}

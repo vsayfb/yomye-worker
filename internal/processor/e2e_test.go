@@ -112,7 +112,7 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 		cfg:        cfg,
 		db:         db,
 		gig:        NewGigProcessor(repo, embeddingClient, fallback, publisher, cfg),
-		profession: NewProfessionProcessor(repo, embeddingClient, fallback, cfg),
+		profession: NewProfessionProcessor(repo, embeddingClient, fallback, publisher, cfg),
 	}
 }
 
@@ -137,15 +137,21 @@ func (e *e2eEnv) seedBaseCategories(t *testing.T, ctx context.Context) {
 // seedListing inserts a minimal listings row in PROCESSING status, the
 // precondition LockListing requires, and registers cleanup for every table
 // gig.go's pipeline can write to for this listing.
-func (e *e2eEnv) seedListing(t *testing.T, ctx context.Context, description string) uuid.UUID {
+func (e *e2eEnv) seedListing(t *testing.T, ctx context.Context, description string) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 
 	id := uuid.New()
+	var countryID uuid.UUID
+	if err := e.db.QueryRow(ctx, `
+		SELECT id FROM countries WHERE is_active = TRUE ORDER BY code LIMIT 1
+	`).Scan(&countryID); err != nil {
+		t.Fatalf("select active country for listing: %v", err)
+	}
 
 	_, err := e.db.Exec(ctx, `
-		INSERT INTO listings (id, author_id, description, status)
-		VALUES ($1, $2, $3, 'PROCESSING')
-	`, id, uuid.New(), description)
+		INSERT INTO listings (id, author_id, country_id, description_raw, status, created_at)
+		VALUES ($1, $2, $3, $4, 'PROCESSING', NOW())
+	`, id, uuid.New(), countryID, description)
 	if err != nil {
 		t.Fatalf("seed listing: %v", err)
 	}
@@ -165,7 +171,7 @@ func (e *e2eEnv) seedListing(t *testing.T, ctx context.Context, description stri
 		}
 	})
 
-	return id
+	return id, countryID
 }
 
 // seedUser inserts a minimal users row with profession_request_id already

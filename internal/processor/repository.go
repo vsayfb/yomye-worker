@@ -22,7 +22,7 @@ type Category struct {
 	CanonicalDescription string
 	IsSelectable         bool
 	IsActive             bool
-	Depth                int16
+	Depth                int
 	CreatedAt            time.Time
 }
 
@@ -48,8 +48,9 @@ type Repository interface {
 	ResolveBaseCategory(ctx context.Context, slug string) (uuid.UUID, error)
 	ListActiveCategories(ctx context.Context, baseCategoryID uuid.UUID) ([]Category, error)
 	ClassifyListing(ctx context.Context, listingID, baseCategoryID uuid.UUID, descriptionClean string) error
+	RejectListing(ctx context.Context, listingID uuid.UUID) error
 	FindCategory(ctx context.Context, baseCategoryID uuid.UUID, parentID *uuid.UUID, canonicalName, canonicalSlug string, embedding []float32) (*Category, error)
-	CreateCategory(ctx context.Context, baseCategoryID uuid.UUID, parentID *uuid.UUID, canonicalName, canonicalSlug, canonicalDescription, generatedBy string, isSelectable bool, depth int16, embedding []float32) (*Category, error)
+	CreateCategory(ctx context.Context, baseCategoryID uuid.UUID, parentID *uuid.UUID, canonicalName, canonicalSlug, canonicalDescription, generatedBy string, isSelectable bool, depth int, embedding []float32) (*Category, error)
 	PromoteCategorySelectable(ctx context.Context, categoryID, baseCategoryID uuid.UUID) (*Category, error)
 	EnsureCategoryLocalization(ctx context.Context, localization CategoryLocalization) error
 	AttachCategory(ctx context.Context, listingID, categoryID, baseCategoryID uuid.UUID) error
@@ -322,6 +323,22 @@ func (r *repository) ClassifyListing(
 	return nil
 }
 
+func (r *repository) RejectListing(ctx context.Context, listingID uuid.UUID) error {
+	tag, err := dbtx.Extract(ctx, r.db).Exec(ctx, `
+		UPDATE listings
+		SET status = 'FAILED'
+		WHERE id = $1
+		  AND status = 'PROCESSING'
+	`, listingID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 1 {
+		return fmt.Errorf("listing is not PROCESSING")
+	}
+	return nil
+}
+
 func (r *repository) FindCategory(
 	ctx context.Context,
 	baseCategoryID uuid.UUID,
@@ -386,7 +403,7 @@ func (r *repository) CreateCategory(
 	parentID *uuid.UUID,
 	canonicalName, canonicalSlug, canonicalDescription, generatedBy string,
 	isSelectable bool,
-	depth int16,
+	depth int,
 	embedding []float32,
 ) (*Category, error) {
 	cat := &Category{}

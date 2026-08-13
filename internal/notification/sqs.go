@@ -117,6 +117,47 @@ func (p *SQSPublisher) PublishGigCategoryMatched(ctx context.Context, event GigC
 	return nil
 }
 
+func (p *SQSPublisher) PublishContentRejected(
+	ctx context.Context,
+	event ContentRejectedEnvelope,
+) (resultErr error) {
+	ctx, span := notificationTracer.Start(
+		ctx,
+		"sqs.publish content_rejected",
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "aws_sqs"),
+			attribute.String("messaging.operation.name", "publish"),
+			attribute.String("messaging.message.type", string(event.Type)),
+			attribute.String("messaging.message.id", event.EventID.String()),
+			attribute.Int("messaging.message.version", event.Version),
+			attribute.String("rejection.subject_type", string(event.Payload.SubjectType)),
+			attribute.String("rejection.subject_id", event.Payload.SubjectID.String()),
+			attribute.String("rejection.reason", event.Payload.Reason),
+		),
+	)
+	defer func() { finishNotificationSpan(span, resultErr) }()
+
+	messageID, err := p.publish(ctx, event)
+	if err != nil {
+		return err
+	}
+	span.SetAttributes(attribute.String("messaging.sqs.message_id", messageID))
+
+	slog.InfoContext(
+		ctx,
+		"content-rejected event published",
+		"message_id", messageID,
+		"event_id", event.EventID,
+		"event_version", event.Version,
+		"subject_type", event.Payload.SubjectType,
+		"subject_id", event.Payload.SubjectID,
+		"reason", event.Payload.Reason,
+	)
+
+	return nil
+}
+
 func finishNotificationSpan(span trace.Span, err error) {
 	defer span.End()
 	if err != nil {
