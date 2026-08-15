@@ -1,6 +1,6 @@
 -- Core schema v18 owns base_categories. This migration is the complete
 -- staging baseline for the category domain owned by this worker.
-CREATE TABLE categories (
+CREATE TABLE IF NOT EXISTS categories (
     id UUID PRIMARY KEY,
     base_category_id UUID NOT NULL
         REFERENCES base_categories(id)
@@ -39,39 +39,39 @@ CREATE TABLE categories (
 
 -- PostgreSQL treats NULL values as distinct in ordinary UNIQUE constraints,
 -- so roots and children need separate indexes for sibling uniqueness.
-CREATE UNIQUE INDEX categories_root_base_name_unique
+CREATE UNIQUE INDEX IF NOT EXISTS categories_root_base_name_unique
     ON categories(base_category_id, canonical_name)
     WHERE parent_id IS NULL;
 
-CREATE UNIQUE INDEX categories_root_base_slug_unique
+CREATE UNIQUE INDEX IF NOT EXISTS categories_root_base_slug_unique
     ON categories(base_category_id, canonical_slug)
     WHERE parent_id IS NULL;
 
-CREATE UNIQUE INDEX categories_child_parent_name_unique
+CREATE UNIQUE INDEX IF NOT EXISTS categories_child_parent_name_unique
     ON categories(base_category_id, parent_id, canonical_name)
     WHERE parent_id IS NOT NULL;
 
-CREATE UNIQUE INDEX categories_child_parent_slug_unique
+CREATE UNIQUE INDEX IF NOT EXISTS categories_child_parent_slug_unique
     ON categories(base_category_id, parent_id, canonical_slug)
     WHERE parent_id IS NOT NULL;
 
-CREATE INDEX categories_active_children_idx
+CREATE INDEX IF NOT EXISTS categories_active_children_idx
     ON categories(base_category_id, parent_id)
     WHERE is_active = TRUE;
 
-CREATE INDEX categories_active_selectable_idx
+CREATE INDEX IF NOT EXISTS categories_active_selectable_idx
     ON categories(base_category_id, id)
     WHERE is_active = TRUE AND is_selectable = TRUE;
 
-CREATE INDEX categories_generated_by_idx
+CREATE INDEX IF NOT EXISTS categories_generated_by_idx
     ON categories(generated_by);
 
-CREATE INDEX categories_embedding_hnsw_idx
+CREATE INDEX IF NOT EXISTS categories_embedding_hnsw_idx
     ON categories
     USING hnsw (embedding vector_cosine_ops)
     WHERE embedding IS NOT NULL;
 
-CREATE FUNCTION enforce_category_tree()
+CREATE OR REPLACE FUNCTION enforce_category_tree()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -120,13 +120,15 @@ BEGIN
 END
 $$;
 
+DROP TRIGGER IF EXISTS trg_enforce_category_tree ON categories;
+
 CREATE TRIGGER trg_enforce_category_tree
 BEFORE INSERT OR UPDATE OF parent_id, base_category_id, depth
 ON categories
 FOR EACH ROW
 EXECUTE FUNCTION enforce_category_tree();
 
-CREATE FUNCTION propagate_category_depth()
+CREATE OR REPLACE FUNCTION propagate_category_depth()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -143,13 +145,15 @@ $$;
 
 -- Updating a direct child fires this trigger again, so depth changes cascade
 -- through the whole subtree while each row remains parent.depth + 1.
+DROP TRIGGER IF EXISTS trg_propagate_category_depth ON categories;
+
 CREATE TRIGGER trg_propagate_category_depth
 AFTER UPDATE ON categories
 FOR EACH ROW
 WHEN (OLD.depth IS DISTINCT FROM NEW.depth)
 EXECUTE FUNCTION propagate_category_depth();
 
-CREATE FUNCTION touch_category_updated_at()
+CREATE OR REPLACE FUNCTION touch_category_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -159,12 +163,14 @@ BEGIN
 END
 $$;
 
+DROP TRIGGER IF EXISTS trg_touch_category_updated_at ON categories;
+
 CREATE TRIGGER trg_touch_category_updated_at
 BEFORE UPDATE ON categories
 FOR EACH ROW
 EXECUTE FUNCTION touch_category_updated_at();
 
-CREATE TABLE category_localizations (
+CREATE TABLE IF NOT EXISTS category_localizations (
     category_id UUID NOT NULL
         REFERENCES categories(id)
         ON DELETE CASCADE,
@@ -189,10 +195,10 @@ CREATE TABLE category_localizations (
         CHECK (length(trim(generated_by)) > 0)
 );
 
-CREATE INDEX category_localizations_locale_slug_idx
+CREATE INDEX IF NOT EXISTS category_localizations_locale_slug_idx
     ON category_localizations(locale, slug);
 
-CREATE FUNCTION touch_category_localization_updated_at()
+CREATE OR REPLACE FUNCTION touch_category_localization_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -201,6 +207,9 @@ BEGIN
     RETURN NEW;
 END
 $$;
+
+DROP TRIGGER IF EXISTS trg_touch_category_localization_updated_at
+    ON category_localizations;
 
 CREATE TRIGGER trg_touch_category_localization_updated_at
 BEFORE UPDATE ON category_localizations
