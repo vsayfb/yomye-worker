@@ -122,7 +122,8 @@ Important supporting packages:
 - `pkg/metrics`: OpenTelemetry metrics.
 - `pkg/tracing`: OpenTelemetry tracing and SQS trace propagation.
 - `pkg/database`: PostgreSQL pool creation.
-- `migrations`: worker-owned category-domain schema changes.
+- `migrations`: one complete Core-v18-compatible worker-owned category-domain baseline.
+- `cmd/workerctl`: staging maintenance binary; `migrate up` atomically applies pending embedded worker migrations before deployment.
 
 ---
 

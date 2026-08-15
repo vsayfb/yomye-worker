@@ -271,12 +271,11 @@ Notifications happen after the database commit. DB work is atomic, but event pub
 
 The worker currently targets Core schema version 18.
 
-Migrations in `migrations/` define the worker-owned category domain:
+The migration directory contains one clean staging baseline:
 
-- `000001`: hierarchy, depth enforcement, sibling uniqueness.
-- `000002`: `generated_by` provenance.
-- `000003`: explicit `is_selectable`.
-- `000004`: canonical English columns and `category_localizations`.
+- `000001_category_domain`: creates the complete worker-owned `categories` and `category_localizations` domain, including hierarchy/depth enforcement, sibling uniqueness, selectability, provenance, embeddings, localization constraints, indexes, and timestamp triggers.
+
+`cmd/workerctl migrate up` embeds and applies pending worker migrations under a transaction-scoped advisory lock, recording completed versions in `categorization_schema_migrations`. The staging workflow runs this command before replacing the worker binary and checks `/ready` after deployment.
 
 Core v18 uses PostgreSQL `INTEGER` for `categories.depth` (Go `int`), not `SMALLINT`/`int16`.
 
