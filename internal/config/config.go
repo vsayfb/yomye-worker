@@ -12,6 +12,7 @@ type Config struct {
 	App    APP
 	DB     DBConfig
 	AWS    AWSConfig
+	GCP    GCPConfig
 	Server ServerConfig
 	AI     AI
 }
@@ -40,6 +41,17 @@ type AWSConfig struct {
 	SQSEndpoint               string
 	CategorizationEventsQueue string
 	NotificationEventsQueue   string
+}
+
+// GCPConfig describes production resources. The parameter IDs retain their
+// legacy SQS names, but these values are fully-qualified Pub/Sub topic names.
+// Transport construction belongs to a dedicated Pub/Sub adapter and must not
+// pass these values to the AWS SDK.
+type GCPConfig struct {
+	ProjectID                 string
+	ParameterLocation         string
+	CategorizationEventsTopic string
+	NotificationEventsTopic   string
 }
 
 type ServerConfig struct {

@@ -50,6 +50,9 @@ const (
 	EnvAWSSQSEndpont        = "AWS_SQS_ENDPOINT"
 	EnvCategorizationSQSUrl = "CATEGORIZATION_SQS_URL"
 	EnvNotificationSQSUrl   = "NOTIFICATION_SQS_URL"
+
+	EnvGoogleCloudProject   = "GOOGLE_CLOUD_PROJECT"
+	EnvGCPParameterLocation = "GCP_PARAMETER_LOCATION"
 )
 
 const (

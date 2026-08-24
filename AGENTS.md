@@ -375,11 +375,12 @@ The user has stated that this worker owns category-related schema design, while 
 - Current situation: the two-minute message processing deadline is preserved, application cleanup has an explicit 10-second budget, and `deploy/systemd/10-graceful-stop.conf` sets `KillSignal=SIGTERM` and `TimeoutStopSec=135s`. The drop-in is intended to be installed for the actual worker unit used in staging.
 - Why: 135 seconds covers the worst-case 120 seconds of remaining in-flight work plus 10 seconds of application cleanup with a 5-second margin. This keeps the service-manager timeout aligned with the application's existing graceful-shutdown behavior without shortening valid message processing.
 
-### 2026-08-09 — Production configuration fails explicitly until implemented
+### 2026-08-24 — Google Cloud production configuration
 
-- Previous situation: `APP_ENV=production` called `loadGCP()`, which returned `(nil, nil)`. An accidental production-mode start therefore looked like successful configuration loading and failed later with an unrelated nil/configuration error.
-- Current situation: the production configuration path returns an explicit `production configuration is not implemented` error. Staging remains the active AWS deployment target and no GCP configuration has been added.
-- Why: an intentionally unfinished deployment target should fail immediately and clearly rather than masquerading as valid configuration. This preserves the staging-first plan without adding premature GCP work.
+- Previous situation: production configuration failed explicitly because Google Cloud parameter loading had not been implemented.
+- Current situation: `APP_ENV=production` uses Application Default Credentials to render the worker's existing parameter IDs from Google Cloud Parameter Manager, reads `GOOGLE_CLOUD_PROJECT`, defaults `GCP_PARAMETER_LOCATION` to `global`, and resolves PostgreSQL credentials through Google Secret Manager. The legacy SQS-named messaging parameters contain fully-qualified Pub/Sub topic names in production.
+- Transport boundary: configuration is implemented, but the worker consumer and notification publisher remain AWS SQS implementations. Application startup therefore fails explicitly before constructing AWS clients in production until dedicated Pub/Sub adapters are wired. `workerctl` can still use production database configuration independently.
+- Why: production configuration should be testable and provider-correct without ever passing Pub/Sub resource names into AWS SDK clients or pretending that the transport migration is complete.
 
 ### 2026-08-09 — Environment-aware trace sampling
 

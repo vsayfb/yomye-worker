@@ -1312,7 +1312,9 @@ Staging SSM configuration includes:
 
 ## Production
 
-`APP_ENV=production` currently fails explicitly because the planned production/GCP configuration has intentionally not yet been implemented.
+`APP_ENV=production` loads configuration through Google Application Default Credentials. It renders the existing parameter IDs from Google Cloud Parameter Manager using `GOOGLE_CLOUD_PROJECT` and `GCP_PARAMETER_LOCATION` (`global` by default), then resolves PostgreSQL credentials from Google Secret Manager. The legacy SQS-named messaging parameters contain fully-qualified Pub/Sub topic names in production.
+
+The message consumer and notification publisher are still SQS adapters. Worker application startup therefore stops at an explicit, compile-safe Pub/Sub transport boundary in production instead of accidentally sending GCP topic names to AWS. The production configuration itself remains usable by maintenance commands such as `workerctl`; full worker startup requires the separate Pub/Sub adapters.
 
 This prevents accidental startup with an invalid nil configuration.
 

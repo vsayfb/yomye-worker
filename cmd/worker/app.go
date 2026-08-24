@@ -121,6 +121,15 @@ func getApp(ctx context.Context) (*App, error) {
 			return
 		}
 
+		// Production parameters contain fully-qualified Pub/Sub topics under
+		// legacy SQS-named parameter IDs. Until the separate Pub/Sub consumer
+		// and publisher adapters are wired, fail here rather than accidentally
+		// constructing AWS clients with GCP resource names.
+		if cfg.App.Env == config.EnvironmentProduction {
+			initErr = fmt.Errorf("production Pub/Sub transport adapter is not implemented")
+			return
+		}
+
 		logHandler := lg.Init(cfg.App.Env)
 
 		if err := metrics.Register(); err != nil {
