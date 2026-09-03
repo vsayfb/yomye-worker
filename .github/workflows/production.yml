@@ -1,0 +1,68 @@
+name: Deploy production
+on:
+  workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
+concurrency:
+  group: production-worker
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Build worker and migration CLI
+        run: |
+          GOOS=linux GOARCH=amd64 go build -trimpath -o bootstrap ./cmd/worker
+          GOOS=linux GOARCH=amd64 go build -trimpath -o workerctl ./cmd/workerctl
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+      - name: Upload artifacts
+        id: upload
+        run: |
+          set -euo pipefail
+          worker_object="worker/${{ github.sha }}.bin"
+          migrator_object="worker/${{ github.sha }}-migrate.bin"
+          gcloud storage cp bootstrap "gs://${{ vars.GCS_DEPLOY_BUCKET }}/${worker_object}"
+          gcloud storage cp workerctl "gs://${{ vars.GCS_DEPLOY_BUCKET }}/${migrator_object}"
+          echo "worker_object=${worker_object}" >> "$GITHUB_OUTPUT"
+          echo "migrator_object=${migrator_object}" >> "$GITHUB_OUTPUT"
+      - name: Resolve Worker instance
+        id: instance
+        run: |
+          set -euo pipefail
+          instance=$(gcloud compute instance-groups managed list-instances "${{ vars.GCP_WORKER_INSTANCE_GROUP }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}" --zone "${{ vars.GCP_ZONE }}" \
+            --filter='instanceStatus=RUNNING' --format='value(instance.basename())' --limit=1)
+          [[ -n "$instance" ]] || { echo "No running Worker instance found." >&2; exit 1; }
+          echo "name=${instance}" >> "$GITHUB_OUTPUT"
+      - name: Migrate and deploy through IAP
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "${{ steps.instance.outputs.name }}" --project "${{ vars.GCP_PROJECT_ID }}" \
+            --zone "${{ vars.GCP_ZONE }}" --tunnel-through-iap --quiet \
+            --command "set -euo pipefail; \
+              sudo gcloud storage cp gs://${{ vars.GCS_DEPLOY_BUCKET }}/${{ steps.upload.outputs.migrator_object }} /tmp/worker-migrate-${{ github.sha }}; \
+              sudo chmod 0700 /tmp/worker-migrate-${{ github.sha }}; trap 'sudo rm -f /tmp/worker-migrate-${{ github.sha }}' EXIT; \
+              sudo env APP_ENV=production GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }} GCP_PARAMETER_LOCATION=global /tmp/worker-migrate-${{ github.sha }} migrate up; \
+              sudo env SERVICE_NAME=worker BINARY_NAME=bootstrap GCS_BUCKET=${{ vars.GCS_DEPLOY_BUCKET }} \
+                GCS_OBJECT=${{ steps.upload.outputs.worker_object }} APP_ENV=production \
+                GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }} PARAMETER_LOCATION=global /opt/deploy/remote-deploy.sh"
+      - name: Verify readiness
+        run: |
+          gcloud compute ssh "${{ steps.instance.outputs.name }}" --project "${{ vars.GCP_PROJECT_ID }}" \
+            --zone "${{ vars.GCP_ZONE }}" --tunnel-through-iap --quiet \
+            --command "curl --fail --silent --show-error --retry 12 --retry-delay 5 --retry-connrefused http://127.0.0.1:8082/ready >/dev/null"

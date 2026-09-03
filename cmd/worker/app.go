@@ -31,7 +31,10 @@ type App struct {
 	cfg *config.Config
 
 	handlers              map[string]processor.Processor
-	notificationPublisher *notification.SQSPublisher
+	notificationPublisher interface {
+		notification.Publisher
+		Close() error
+	}
 
 	db *pgxpool.Pool
 
@@ -121,15 +124,6 @@ func getApp(ctx context.Context) (*App, error) {
 			return
 		}
 
-		// Production parameters contain fully-qualified Pub/Sub topics under
-		// legacy SQS-named parameter IDs. Until the separate Pub/Sub consumer
-		// and publisher adapters are wired, fail here rather than accidentally
-		// constructing AWS clients with GCP resource names.
-		if cfg.App.Env == config.EnvironmentProduction {
-			initErr = fmt.Errorf("production Pub/Sub transport adapter is not implemented")
-			return
-		}
-
 		logHandler := lg.Init(cfg.App.Env)
 
 		if err := metrics.Register(); err != nil {
@@ -200,13 +194,18 @@ func getApp(ctx context.Context) (*App, error) {
 
 		fallback := extractor.NewFallbackExtractor(extractors...)
 
-		publisher, err := notification.NewNotificationPublisher(
-			ctx,
-			cfg,
-		)
+		var publisher interface {
+			notification.Publisher
+			Close() error
+		}
+		if cfg.App.Env == config.EnvironmentProduction {
+			publisher, err = notification.NewPubSubPublisher(ctx, cfg.GCP.ProjectID, cfg.GCP.NotificationEventsTopic)
+		} else {
+			publisher, err = notification.NewNotificationPublisher(ctx, cfg)
+		}
 
 		if err != nil {
-			initErr = fmt.Errorf("create sqs publisher: %w", err)
+			initErr = fmt.Errorf("create notification publisher: %w", err)
 			return
 		}
 

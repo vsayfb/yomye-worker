@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/vsayfb/gig-platform-categorization-service/internal/config"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/runtimepolicy"
 	"github.com/vsayfb/gig-platform-categorization-service/internal/worker"
 )
@@ -25,12 +26,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	w, err := worker.New(ctx, app.cfg, app.cfg.AWS.CategorizationEventsQueue, app.handlers)
+	type runtimeWorker interface {
+		Run(context.Context) error
+	}
+	var w runtimeWorker
+	var closeWorker func() error
+	if app.cfg.App.Env == config.EnvironmentProduction {
+		pubSubWorker, createErr := worker.NewPubSub(ctx, app.cfg.GCP.ProjectID, app.cfg.GCP.CategorizationSubscription, app.handlers, app.cfg.Server.WorkerConcurrency)
+		err = createErr
+		if createErr == nil {
+			w = pubSubWorker
+			closeWorker = pubSubWorker.Close
+		}
+	} else {
+		w, err = worker.New(ctx, app.cfg, app.cfg.AWS.CategorizationEventsQueue, app.handlers)
+		closeWorker = func() error { return nil }
+	}
 
 	if err != nil {
 		slog.Error("failed to initialize worker", "err", err)
 		os.Exit(1)
 	}
+	defer func() {
+		if closeWorker != nil {
+			_ = closeWorker()
+		}
+	}()
 
 	healthMux := http.NewServeMux()
 

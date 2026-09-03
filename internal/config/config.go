@@ -48,10 +48,11 @@ type AWSConfig struct {
 // Transport construction belongs to a dedicated Pub/Sub adapter and must not
 // pass these values to the AWS SDK.
 type GCPConfig struct {
-	ProjectID                 string
-	ParameterLocation         string
-	CategorizationEventsTopic string
-	NotificationEventsTopic   string
+	ProjectID                  string
+	ParameterLocation          string
+	CategorizationEventsTopic  string
+	CategorizationSubscription string
+	NotificationEventsTopic    string
 }
 
 type ServerConfig struct {

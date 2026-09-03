@@ -55,6 +55,8 @@ const (
 	EnvGCPParameterLocation = "GCP_PARAMETER_LOCATION"
 )
 
+const ParameterCategoryEventsSubscription = "category-events-subscription"
+
 const (
 	DefaultServiceName = "categorization-worker"
 

@@ -99,6 +99,9 @@ func TestLoadGCPSuccessAndClosesClients(t *testing.T) {
 	if cfg.GCP.CategorizationEventsTopic != "projects/yevmiye-production/topics/categorization" {
 		t.Fatalf("categorization topic = %q", cfg.GCP.CategorizationEventsTopic)
 	}
+	if cfg.GCP.CategorizationSubscription != "projects/yevmiye-production/subscriptions/category-worker" {
+		t.Fatalf("categorization subscription = %q", cfg.GCP.CategorizationSubscription)
+	}
 	if cfg.GCP.NotificationEventsTopic != "projects/yevmiye-production/topics/notification" {
 		t.Fatalf("notification topic = %q", cfg.GCP.NotificationEventsTopic)
 	}
@@ -165,8 +168,11 @@ func TestGCPParameterNamesMatchAWSParameterSuffixes(t *testing.T) {
 		got[name] = struct{}{}
 	}
 
-	if len(got) != len(want) {
-		t.Fatalf("GCP parameter count = %d, want %d", len(got), len(want))
+	if len(got) != len(want)+1 {
+		t.Fatalf("GCP parameter count = %d, want %d AWS-compatible plus one GCP subscription", len(got), len(want))
+	}
+	if _, ok := got[ParameterCategoryEventsSubscription]; !ok {
+		t.Errorf("GCP parameters are missing Pub/Sub subscription %q", ParameterCategoryEventsSubscription)
 	}
 	for name := range want {
 		if _, ok := got[name]; !ok {
@@ -302,6 +308,7 @@ func validGCPParameters() map[string][]byte {
 		ParameterDBName:                        "yevmiye",
 		ParameterRDSSecretArn:                  testSecretName,
 		ParameterSQSCategoryEventsQueueURL:     "projects/yevmiye-production/topics/categorization",
+		ParameterCategoryEventsSubscription:    "projects/yevmiye-production/subscriptions/category-worker",
 		ParameterSQSNotificationEventsQueueURL: "projects/yevmiye-production/topics/notification",
 		ParameterGroqAPIKey:                    "groq-key",
 		ParameterGroqEndpoint:                  "https://groq.example",

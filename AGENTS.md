@@ -379,7 +379,7 @@ The user has stated that this worker owns category-related schema design, while 
 
 - Previous situation: production configuration failed explicitly because Google Cloud parameter loading had not been implemented.
 - Current situation: `APP_ENV=production` uses Application Default Credentials to render the worker's existing parameter IDs from Google Cloud Parameter Manager, reads `GOOGLE_CLOUD_PROJECT`, defaults `GCP_PARAMETER_LOCATION` to `global`, and resolves PostgreSQL credentials through Google Secret Manager. The legacy SQS-named messaging parameters contain fully-qualified Pub/Sub topic names in production.
-- Transport boundary: configuration is implemented, but the worker consumer and notification publisher remain AWS SQS implementations. Application startup therefore fails explicitly before constructing AWS clients in production until dedicated Pub/Sub adapters are wired. `workerctl` can still use production database configuration independently.
+- Transport boundary: production uses a dedicated Pub/Sub subscription consumer and Pub/Sub notification publisher. Retryable processing failures are nacked, successful and permanently invalid events are acked, and AWS SQS remains staging-only.
 - Why: production configuration should be testable and provider-correct without ever passing Pub/Sub resource names into AWS SDK clients or pretending that the transport migration is complete.
 
 ### 2026-08-09 — Environment-aware trace sampling

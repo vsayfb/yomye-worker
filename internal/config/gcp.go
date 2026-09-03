@@ -134,10 +134,11 @@ func loadGCPConfig(
 			SSLMode:  "require",
 		},
 		GCP: GCPConfig{
-			ProjectID:                 projectID,
-			ParameterLocation:         location,
-			CategorizationEventsTopic: params[ParameterSQSCategoryEventsQueueURL],
-			NotificationEventsTopic:   params[ParameterSQSNotificationEventsQueueURL],
+			ProjectID:                  projectID,
+			ParameterLocation:          location,
+			CategorizationEventsTopic:  params[ParameterSQSCategoryEventsQueueURL],
+			CategorizationSubscription: params[ParameterCategoryEventsSubscription],
+			NotificationEventsTopic:    params[ParameterSQSNotificationEventsQueueURL],
 		},
 		Server: ServerConfig{
 			MetricsServerPort: getEnv(EnvMetricsServerPort, DefaultMetricsServerPort),
@@ -190,6 +191,7 @@ func gcpParameterNames() []string {
 		ParameterDBName,
 		ParameterRDSSecretArn,
 		ParameterSQSCategoryEventsQueueURL,
+		ParameterCategoryEventsSubscription,
 		ParameterSQSNotificationEventsQueueURL,
 		ParameterGroqAPIKey,
 		ParameterGroqEndpoint,
