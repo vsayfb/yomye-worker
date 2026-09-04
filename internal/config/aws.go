@@ -27,7 +27,7 @@ const (
 	ParameterGroqEndpoint = "groq-ai-endpoint"
 	ParameterGroqModel    = "groq-ai-model"
 
-	ParameterOpenRouterAPIKey   = "open_router-api-key"
+	ParameterOpenRouterAPIKey   = "open-router-api-key"
 	ParameterOpenRouterEndpoint = "open_router-ai-endpoint"
 	ParameterOpenRouterModel    = "open_router-ai-model"
 
