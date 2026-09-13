@@ -41,9 +41,9 @@ func loadEnv() (*Config, error) {
 				Model:   getEnv(EnvGroqModel, ""),
 			},
 			OpenRouter: AIConfig{
-				APIKey:  getEnv(EnvQwenAPIKey, ""),
-				BaseURL: getEnv(EnvQwenBaseURL, ""),
-				Model:   getEnv(EnvQwenModel, ""),
+				APIKey:  getEnv(EnvOpenRouterAPIKey, ""),
+				BaseURL: getEnv(EnvOpenRouterBaseURL, ""),
+				Model:   getEnv(EnvOpenRouterModel, ""),
 			},
 			Gemini: AIConfig{
 				APIKey: getEnv(EnvGeminiAPIKey, ""),

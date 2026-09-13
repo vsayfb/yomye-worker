@@ -163,10 +163,10 @@ func configuredBenchmarkProviders() []Extractor {
 			model:   os.Getenv(config.EnvGroqModel),
 		},
 		{
-			name:    "qwen",
-			apiKey:  os.Getenv(config.EnvQwenAPIKey),
-			baseURL: os.Getenv(config.EnvQwenBaseURL),
-			model:   os.Getenv(config.EnvQwenModel),
+			name:    "open-router",
+			apiKey:  os.Getenv(config.EnvOpenRouterAPIKey),
+			baseURL: os.Getenv(config.EnvOpenRouterBaseURL),
+			model:   os.Getenv(config.EnvOpenRouterModel),
 		},
 		{
 			name:    "nvidia",

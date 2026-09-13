@@ -28,9 +28,9 @@ const (
 	EnvGeminiAPIKey = "GEMINI_API_KEY"
 	EnvGeminiModel  = "GEMINI_MODEL"
 
-	EnvQwenAPIKey  = "QWEN_API_KEY"
-	EnvQwenModel   = "QWEN_MODEL"
-	EnvQwenBaseURL = "QWEN_BASE_URL"
+	EnvOpenRouterAPIKey  = "OPEN_ROUTER_API_KEY"
+	EnvOpenRouterModel   = "OPEN_ROUTER_MODEL"
+	EnvOpenRouterBaseURL = "OPEN_ROUTER_BASE_URL"
 
 	EnvNvidiaAPIKey  = "NVIDIA_API_KEY"
 	EnvNvidiaModel   = "NVIDIA_MODEL"
