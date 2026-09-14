@@ -295,6 +295,12 @@ The user has stated that this worker owns category-related schema design, while 
 
 ## Recent implementation decisions
 
+### 2026-09-14 — Persistent GCP production VM
+
+- Previous situation: production targeted a managed instance group whose proactive update policy could replace the Worker VM whenever its instance template changed, discarding the systemd deployment installed after boot.
+- Current situation: production targets one fixed Terraform-managed Compute Engine instance by name. Terraform protects it with `prevent_destroy`, so a replacement-requiring infrastructure change fails instead of rotating the VM automatically.
+- Why: Worker is deployed as a persistent systemd service, including host-local Ollama state. Its infrastructure lifecycle must match that deployment model; replacing it is an explicit maintenance operation, never a routine Terraform rollout.
+
 ### 2026-08-10 — Explicit AI content moderation for MVP
 
 - Previous situation: listing and profession content went directly into taxonomy extraction, with no adult/restricted-content decision.

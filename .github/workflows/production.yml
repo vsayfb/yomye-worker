@@ -40,15 +40,14 @@ jobs:
           gcloud storage cp workerctl "gs://${{ vars.GCS_DEPLOY_BUCKET }}/${migrator_object}"
           echo "worker_object=${worker_object}" >> "$GITHUB_OUTPUT"
           echo "migrator_object=${migrator_object}" >> "$GITHUB_OUTPUT"
-      - name: Resolve Worker instance
+      - name: Verify Worker instance
         id: instance
         run: |
           set -euo pipefail
-          instance=$(gcloud compute instance-groups managed list-instances "${{ vars.GCP_WORKER_INSTANCE_GROUP }}" \
-            --project "${{ vars.GCP_PROJECT_ID }}" --zone "${{ vars.GCP_ZONE }}" \
-            --filter='instanceStatus=RUNNING' --format='value(instance.basename())' --limit=1)
-          [[ -n "$instance" ]] || { echo "No running Worker instance found." >&2; exit 1; }
-          echo "name=${instance}" >> "$GITHUB_OUTPUT"
+          status=$(gcloud compute instances describe "${{ vars.GCP_WORKER_INSTANCE }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}" --zone "${{ vars.GCP_ZONE }}" --format='value(status)')
+          [[ "$status" == "RUNNING" ]] || { echo "Worker instance is not running: $status" >&2; exit 1; }
+          echo "name=${{ vars.GCP_WORKER_INSTANCE }}" >> "$GITHUB_OUTPUT"
       - name: Migrate and deploy through IAP
         run: |
           set -euo pipefail
