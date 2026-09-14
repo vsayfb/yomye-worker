@@ -32,22 +32,22 @@ func TestOllamaEmbeddingsURL(t *testing.T) {
 		{
 			name:     "scheme-less endpoint",
 			endpoint: "localhost:11434",
-			want:     "http://localhost:11434/api/embeddings",
+			want:     "http://localhost:11434/api/embed",
 		},
 		{
 			name:     "HTTP endpoint",
 			endpoint: "http://localhost:11434",
-			want:     "http://localhost:11434/api/embeddings",
+			want:     "http://localhost:11434/api/embed",
 		},
 		{
 			name:     "trailing slash",
 			endpoint: "https://ollama.internal/",
-			want:     "https://ollama.internal/api/embeddings",
+			want:     "https://ollama.internal/api/embed",
 		},
 		{
 			name:     "base path",
 			endpoint: "http://ollama.internal/v1/",
-			want:     "http://ollama.internal/v1/api/embeddings",
+			want:     "http://ollama.internal/v1/api/embed",
 		},
 	}
 
@@ -96,7 +96,7 @@ func TestLocalClientEmbedEmitsDependencySpan(t *testing.T) {
 			StatusCode: http.StatusOK,
 			Status:     "200 OK",
 			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader(`{"embedding":[0.1,0.2,0.3]}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"embeddings":[[0.1,0.2,0.3]]}`)),
 			Request:    request,
 		}, nil
 	})}

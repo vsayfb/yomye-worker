@@ -25,12 +25,12 @@ type LocalClient struct {
 }
 
 type OllamaEmbeddingRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
+	Model string `json:"model"`
+	Input string `json:"input"`
 }
 
 type OllamaEmbeddingResponse struct {
-	Embedding []float32 `json:"embedding"`
+	Embeddings [][]float32 `json:"embeddings"`
 }
 
 func NewLocalClient(cfg *config.Config) *LocalClient {
@@ -62,8 +62,8 @@ func (c *LocalClient) Embed(ctx context.Context, text string) (embedding []float
 	}()
 
 	reqBody := OllamaEmbeddingRequest{
-		Model:  c.cfg.AI.HuggingFaceAIModel,
-		Prompt: text,
+		Model: c.cfg.AI.HuggingFaceAIModel,
+		Input: text,
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -109,11 +109,11 @@ func (c *LocalClient) Embed(ctx context.Context, text string) (embedding []float
 		return nil, fmt.Errorf("decode local embedding response: %w", err)
 	}
 
-	if len(result.Embedding) == 0 {
+	if len(result.Embeddings) == 0 || len(result.Embeddings[0]) == 0 {
 		return nil, fmt.Errorf("empty local embedding array returned")
 	}
 
-	return result.Embedding, nil
+	return result.Embeddings[0], nil
 }
 
 func ollamaEmbeddingsURL(endpoint string) (string, error) {
@@ -133,7 +133,7 @@ func ollamaEmbeddingsURL(endpoint string) (string, error) {
 		return "", fmt.Errorf("invalid local ollama endpoint %q", endpoint)
 	}
 
-	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/api/embeddings"
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/api/embed"
 	parsed.RawQuery = ""
 	parsed.Fragment = ""
 
