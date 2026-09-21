@@ -140,57 +140,24 @@ func TestAIProviderFallbackBenchmark(t *testing.T) {
 }
 
 func configuredBenchmarkProviders() []Extractor {
-	var providers []Extractor
-
-	gemini := config.AIConfig{
-		APIKey: os.Getenv(config.EnvGeminiAPIKey),
-		Model:  os.Getenv(config.EnvGeminiModel),
-	}
-	if gemini.APIKey != "" && gemini.Model != "" {
-		providers = append(providers, NewGeminiExtractor(&gemini))
-	}
-
-	openAICompatible := []struct {
-		name    string
-		apiKey  string
-		baseURL string
-		model   string
-	}{
-		{
-			name:    "groq",
-			apiKey:  os.Getenv(config.EnvGroqAPIKey),
-			baseURL: os.Getenv(config.EnvGroqBaseURL),
-			model:   os.Getenv(config.EnvGroqModel),
+	ai := config.AI{
+		Groq: config.AIConfig{
+			APIKey: os.Getenv(config.EnvGroqAPIKey), BaseURL: os.Getenv(config.EnvGroqBaseURL), Model: os.Getenv(config.EnvGroqModel),
 		},
-		{
-			name:    "open-router",
-			apiKey:  os.Getenv(config.EnvOpenRouterAPIKey),
-			baseURL: os.Getenv(config.EnvOpenRouterBaseURL),
-			model:   os.Getenv(config.EnvOpenRouterModel),
+		OpenRouter: config.AIConfig{
+			APIKey: os.Getenv(config.EnvOpenRouterAPIKey), BaseURL: os.Getenv(config.EnvOpenRouterBaseURL), Model: os.Getenv(config.EnvOpenRouterModel),
 		},
-		{
-			name:    "nvidia",
-			apiKey:  os.Getenv(config.EnvNvidiaAPIKey),
-			baseURL: os.Getenv(config.EnvNvidiaBaseURL),
-			model:   os.Getenv(config.EnvNvidiaModel),
+		Gemini: config.AIConfig{
+			APIKey: os.Getenv(config.EnvGeminiAPIKey), Model: os.Getenv(config.EnvGeminiModel),
+		},
+		Mistral: config.AIConfig{
+			APIKey: os.Getenv(config.EnvMistralAPIKey), BaseURL: os.Getenv(config.EnvMistralBaseURL), Model: os.Getenv(config.EnvMistralModel),
+		},
+		Nvidia: config.AIConfig{
+			APIKey: os.Getenv(config.EnvNvidiaAPIKey), BaseURL: os.Getenv(config.EnvNvidiaBaseURL), Model: os.Getenv(config.EnvNvidiaModel),
 		},
 	}
-	for _, provider := range openAICompatible {
-		if provider.apiKey == "" || provider.baseURL == "" || provider.model == "" {
-			continue
-		}
-		providerConfig := config.AIConfig{
-			APIKey:  provider.apiKey,
-			BaseURL: provider.baseURL,
-			Model:   provider.model,
-		}
-		providers = append(
-			providers,
-			NewOpenAIExtractor(&providerConfig, provider.name),
-		)
-	}
-
-	return providers
+	return ConfiguredProviders(&ai)
 }
 
 func runBenchmarkAttempt(

@@ -111,9 +111,9 @@ Category extraction and details extraction are separate AI calls. The category-p
 
 Configured providers are assembled in `cmd/worker/app.go`. Current fallback order is:
 
-1. Gemini
-2. Groq
-3. OpenRouter
+1. Groq
+2. OpenRouter
+3. Gemini
 4. Mistral
 5. Nvidia
 
@@ -294,6 +294,12 @@ The user has stated that this worker owns category-related schema design, while 
 - Post-commit notifications preserve DB correctness. Re-publishing on `OPEN` replay closes the silent-loss window but accepts possible duplicate events. Introduce an outbox only if future requirements justify stronger delivery/deduplication guarantees.
 
 ## Recent implementation decisions
+
+### 2026-09-21 — Groq-first AI fallback order
+
+- Previous situation: configured AI calls tried Gemini first, followed by Groq, OpenRouter, Mistral, and Nvidia.
+- Current situation: runtime processing, the live evaluator, and the opt-in AI benchmark now try Groq, OpenRouter, Gemini, Mistral, and Nvidia. Providers that are not fully configured remain skipped.
+- Why: the selected Groq and OpenRouter models should receive normal traffic before Gemini while preserving the existing sequential fallback, validation, provenance, and timeout behavior.
 
 ### 2026-09-14 — Persistent GCP production VM
 

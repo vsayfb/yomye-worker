@@ -387,9 +387,9 @@ Retrieval-based narrowing may be added later if taxonomy size, token cost, laten
 
 Configured providers are tried sequentially in this order:
 
-1. Gemini
-2. Groq
-3. OpenRouter
+1. Groq
+2. OpenRouter
+3. Gemini
 4. Mistral
 5. Nvidia
 

@@ -84,25 +84,7 @@ func run(ctx context.Context, opts options) error {
 }
 
 func configuredExtractors(cfg *config.Config) []extractor.Extractor {
-	var providers []extractor.Extractor
-	if cfg.AI.Gemini.APIKey != "" && cfg.AI.Gemini.Model != "" {
-		providers = append(providers, extractor.NewGeminiExtractor(&cfg.AI.Gemini))
-	}
-	for _, provider := range []struct {
-		name string
-		cfg  *config.AIConfig
-	}{
-		{name: "groq", cfg: &cfg.AI.Groq},
-		{name: "open-router", cfg: &cfg.AI.OpenRouter},
-		{name: "mistral", cfg: &cfg.AI.Mistral},
-		{name: "nvidia", cfg: &cfg.AI.Nvidia},
-	} {
-		if provider.cfg.APIKey == "" || provider.cfg.BaseURL == "" || provider.cfg.Model == "" {
-			continue
-		}
-		providers = append(providers, extractor.NewOpenAIExtractor(provider.cfg, provider.name))
-	}
-	return providers
+	return extractor.ConfiguredProviders(&cfg.AI)
 }
 
 func captureBaseline(

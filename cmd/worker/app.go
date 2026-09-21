@@ -157,34 +157,7 @@ func getApp(ctx context.Context) (*App, error) {
 
 		embeddingClient := embeddings.NewLocalClient(cfg)
 
-		var extractors []extractor.Extractor
-
-		if cfg.AI.Gemini.APIKey != "" &&
-			cfg.AI.Gemini.Model != "" {
-			extractors = append(
-				extractors,
-				extractor.NewGeminiExtractor(&cfg.AI.Gemini),
-			)
-		}
-
-		for _, provider := range []struct {
-			name string
-			cfg  *config.AIConfig
-		}{
-			{name: "groq", cfg: &cfg.AI.Groq},
-			{name: "open-router", cfg: &cfg.AI.OpenRouter},
-			{name: "mistral", cfg: &cfg.AI.Mistral},
-			{name: "nvidia", cfg: &cfg.AI.Nvidia},
-		} {
-			if provider.cfg.APIKey != "" &&
-				provider.cfg.BaseURL != "" &&
-				provider.cfg.Model != "" {
-				extractors = append(
-					extractors,
-					extractor.NewOpenAIExtractor(provider.cfg, provider.name),
-				)
-			}
-		}
+		extractors := extractor.ConfiguredProviders(&cfg.AI)
 
 		if len(extractors) == 0 {
 			initErr = fmt.Errorf("no AI extraction provider is configured")

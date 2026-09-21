@@ -24,9 +24,9 @@ Receive failures use exponential backoff: 1, 2, 4, 8, and 16 seconds, then a max
 
 The configured provider order is:
 
-1. Gemini
-2. Groq
-3. OpenRouter
+1. Groq
+2. OpenRouter
+3. Gemini
 4. Mistral
 5. Nvidia
 
