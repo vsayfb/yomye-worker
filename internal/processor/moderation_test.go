@@ -34,7 +34,7 @@ func TestGigProcessor_ModerationFailureDoesNotRejectOrPublish(t *testing.T) {
 	err := processor.processListing(context.Background(), ListingCreatedMessage{
 		ListingID:   uuid.New(),
 		AuthorID:    uuid.New(),
-		CountryID:   uuid.New(),
+		CountryID:   uuidPointer(uuid.New()),
 		Description: "content",
 	})
 	if err == nil || !errors.Is(err, extractor.ErrRateLimited) {
@@ -84,7 +84,7 @@ func TestGigProcessor_ExplicitModerationRejectSetsFailedAndPublishes(t *testing.
 	err := processor.processListing(context.Background(), ListingCreatedMessage{
 		ListingID:   listingID,
 		AuthorID:    authorID,
-		CountryID:   uuid.New(),
+		CountryID:   uuidPointer(uuid.New()),
 		Description: "whisky delivery",
 	})
 	if err != nil {

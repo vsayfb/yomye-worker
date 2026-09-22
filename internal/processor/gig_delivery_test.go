@@ -102,7 +102,7 @@ func TestGigProcessor_AlreadyOpenReplayRepublishesNotifications(t *testing.T) {
 		ListingID:   listingID,
 		Description: "Need a plumber",
 		AuthorID:    authorID,
-		CountryID:   uuid.New(),
+		CountryID:   uuidPointer(uuid.New()),
 	})
 	if err != nil {
 		t.Fatalf("marshal listing message: %v", err)
@@ -189,7 +189,7 @@ func TestGigProcessor_AlreadyOpenPublishFailureCanRecoverOnReplay(t *testing.T) 
 		ListingID:   listingID,
 		Description: "Need a plumber",
 		AuthorID:    authorID,
-		CountryID:   uuid.New(),
+		CountryID:   uuidPointer(uuid.New()),
 	})
 	if err != nil {
 		t.Fatalf("marshal listing message: %v", err)

@@ -140,7 +140,7 @@ Current listing event:
   "listing_id": "uuid",
   "author_id": "uuid",
   "description": "Musluğumu tamir edecek bir tesisatçı arıyorum",
-  "country_id": "uuid",
+  "country_id": "optional-uuid",
   "place_id": "optional-uuid"
 }
 ```
@@ -150,8 +150,8 @@ Validation rules:
 - `listing_id` is required.
 - `author_id` is required.
 - `description` must not be empty.
-- `country_id` is required by Core schema v18.
-- `place_id` is optional.
+- `country_id` is present for local listings and absent for remote listings.
+- `place_id` is optional, requires `country_id`, and is absent for remote listings.
 
 The listing is expected to already exist in Core with approximately:
 

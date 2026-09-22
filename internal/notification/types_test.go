@@ -53,7 +53,7 @@ func TestGigCategoryMatchedEnvelopeUsesInternationalLocation(t *testing.T) {
 		Payload: GigCategoryMatchedEvent{
 			GigID:      gigID,
 			CategoryID: categoryID,
-			CountryID:  countryID,
+			CountryID:  &countryID,
 			PlaceID:    &placeID,
 			OccurredAt: occurredAt,
 		},

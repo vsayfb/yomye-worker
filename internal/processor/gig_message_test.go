@@ -19,7 +19,7 @@ func TestDecodeListingCreatedMessagePreservesInternationalLocation(t *testing.T)
 	if err != nil {
 		t.Fatalf("decodeListingCreatedMessage() error = %v", err)
 	}
-	if msg.CountryID != countryID {
+	if msg.CountryID == nil || *msg.CountryID != countryID {
 		t.Fatalf("country_id = %v, want %s", msg.CountryID, countryID)
 	}
 	if msg.PlaceID == nil || *msg.PlaceID != placeID {
@@ -27,13 +27,16 @@ func TestDecodeListingCreatedMessagePreservesInternationalLocation(t *testing.T)
 	}
 }
 
-func TestDecodeListingCreatedMessageRejectsMissingCountry(t *testing.T) {
+func TestDecodeListingCreatedMessageAllowsRemoteWithoutLocation(t *testing.T) {
 	body := `{"listing_id":"` + uuid.NewString() + `","author_id":"` + uuid.NewString() +
 		`","description":"I need a plumber"}`
 
-	_, err := decodeListingCreatedMessage(body)
-	if err == nil || !strings.Contains(err.Error(), "missing country_id") {
-		t.Fatalf("decodeListingCreatedMessage() error = %v, want missing-country error", err)
+	msg, err := decodeListingCreatedMessage(body)
+	if err != nil {
+		t.Fatalf("decodeListingCreatedMessage() error = %v", err)
+	}
+	if msg.CountryID != nil || msg.PlaceID != nil {
+		t.Fatalf("remote location = country %v place %v, want nil values", msg.CountryID, msg.PlaceID)
 	}
 }
 
@@ -42,7 +45,7 @@ func TestDecodeListingCreatedMessageRejectsPlaceWithoutCountry(t *testing.T) {
 		`","description":"I need a plumber","place_id":"` + uuid.NewString() + `"}`
 
 	_, err := decodeListingCreatedMessage(body)
-	if err == nil || !strings.Contains(err.Error(), "missing country_id") {
+	if err == nil || !strings.Contains(err.Error(), "place_id requires country_id") {
 		t.Fatalf("decodeListingCreatedMessage() error = %v, want place/country validation error", err)
 	}
 }

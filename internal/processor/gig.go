@@ -93,7 +93,7 @@ type ListingCreatedMessage struct {
 	ListingID   uuid.UUID  `json:"listing_id"`
 	Description string     `json:"description"`
 	AuthorID    uuid.UUID  `json:"author_id"`
-	CountryID   uuid.UUID  `json:"country_id"`
+	CountryID   *uuid.UUID `json:"country_id,omitempty"`
 	PlaceID     *uuid.UUID `json:"place_id,omitempty"`
 }
 
@@ -241,8 +241,11 @@ func validateListingCreatedMessage(msg ListingCreatedMessage) error {
 	if strings.TrimSpace(msg.Description) == "" {
 		return errors.New("invalid listing-created message: empty description")
 	}
-	if msg.CountryID == uuid.Nil {
-		return errors.New("invalid listing-created message: missing country_id")
+	if msg.CountryID != nil && *msg.CountryID == uuid.Nil {
+		return errors.New("invalid listing-created message: country_id must not be nil UUID")
+	}
+	if msg.PlaceID != nil && msg.CountryID == nil {
+		return errors.New("invalid listing-created message: place_id requires country_id")
 	}
 	return nil
 }

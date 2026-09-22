@@ -31,7 +31,7 @@ func TestGigProcessor_E2E_ClassifiesAndOpensListing(t *testing.T) {
 		ListingID:   listingID,
 		Description: description,
 		AuthorID:    uuid.New(),
-		CountryID:   countryID,
+		CountryID:   &countryID,
 	}
 	body, err := json.Marshal(msg)
 	if err != nil {

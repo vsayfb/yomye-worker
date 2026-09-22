@@ -59,8 +59,8 @@ Fields:
 - `category_id` is the exact category assigned to the listing.
 - `matched_category_ids` contains the exact category plus its active, selectable ancestors.
 - `matched_category_ids` should be ordered from broadest selectable ancestor to the exact selected category.
-- `country_id` remains required under Core schema v18.
-- `place_id` remains optional.
+- `country_id` is present for local listings and absent for remote listings.
+- `place_id` is optional, requires `country_id`, and is absent for remote listings.
 
 Because the payload changes, increment the event version rather than silently changing version 1.
 

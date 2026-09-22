@@ -174,14 +174,15 @@ Accepted SQS message types:
   "listing_id": "uuid",
   "author_id": "uuid",
   "description": "Musluğumu tamir edecek bir tesisatçı arıyorum",
-  "country_id": "uuid",
+  "country_id": "optional-uuid",
   "place_id": "optional-uuid"
 }
 ```
 
 Location rules:
 
-- `country_id` is a required UUID under Core schema v18; `place_id` is optional.
+- Both location fields are absent for a remote listing. A local listing has
+  `country_id`; `place_id` remains optional and requires `country_id`.
 - Do not use or populate legacy `city_id` or `district_id`.
 - Do not reinterpret a place as necessarily a city/district; Core's `places` catalog supports arbitrary administrative levels and localities.
 - Core already persists listing location. The worker preserves event values and forwards them where needed; it does not translate them to legacy IDs.
@@ -239,7 +240,7 @@ The final association must be an active, selectable category in the `gig` base c
 After a listing commits, and again on an `OPEN` replay, the worker publishes:
 
 - `listing_approved`: recipient, listing UUID, base-category slug, title, timestamp.
-- `gig_category_matched`: listing/gig UUID, category UUID, required `country_id`, optional `place_id`, timestamp.
+- `gig_category_matched`: listing/gig UUID, category UUID, optional `country_id` and `place_id`, timestamp. Both location fields are absent for remote listings.
 - `content_rejected`: recipient UUID, `listing` or `profession` subject type, subject UUID, stable reason code, timestamp. Never include the rejected raw content.
 
 Every emitted notification envelope includes `event_id` and `version`. `version` is currently `1`. Event IDs are deterministic for the same logical event so an `OPEN` replay publishes the same ID again: `listing_approved` is keyed by listing UUID and `gig_category_matched` by listing UUID plus category UUID. Downstream consumers should use `event_id` for idempotent handling of the worker's at-least-once publication semantics.
@@ -294,6 +295,12 @@ The user has stated that this worker owns category-related schema design, while 
 - Post-commit notifications preserve DB correctness. Re-publishing on `OPEN` replay closes the silent-loss window but accepts possible duplicate events. Introduce an outbox only if future requirements justify stronger delivery/deduplication guarantees.
 
 ## Recent implementation decisions
+
+### 2026-09-21 — Remote listings have no location
+
+- Previous situation: every listing event required `country_id`, even when the listing represented work that could be completed remotely.
+- Current situation: a remote listing event omits both `country_id` and `place_id`. Local listings keep the existing country and optional place contract. Worker classification does not require location and forwards the optional values to Notification unchanged.
+- Why: remote work is not country-scoped. Requiring a country forced the Client to invent location context that the listing does not have.
 
 ### 2026-09-21 — Groq-first AI fallback order
 

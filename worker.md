@@ -86,7 +86,7 @@ Only the final active and selectable category UUID is associated with a listing 
 }
 ```
 
-Core creates the listing beforehand with `status = PROCESSING` and `base_category_id = NULL`. `country_id` is required; `place_id` is optional. The worker does not translate these UUIDs into legacy city or district identifiers.
+Core creates the listing beforehand with `status = PROCESSING` and `base_category_id = NULL`. Local listings have `country_id` and an optional `place_id`; remote listings have neither. The worker does not translate these UUIDs into legacy city or district identifiers.
 
 ### Step 1: Decode and validate the event
 
